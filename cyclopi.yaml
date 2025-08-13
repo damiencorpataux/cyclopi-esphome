@@ -6,9 +6,7 @@ esphome:
     board_build.flash_mode: dio
   on_boot:
     then:
-      - light.turn_on:
-          id: backlight
-          effect: "strobe"
+      - script.execute: apply_light_state
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -23,8 +21,36 @@ globals:
     initial_value: "2"  # 0 = off, 1 = solid, 2 = strobe
   - id: light_brightness
     type: int
-    restore_value: True
+    restore_value: true
     initial_value: "255"  # full brightness 0-255
+  - id: light_color_red
+    type: int
+    restore_value: true
+    initial_value: "255"
+  - id: light_color_green
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: light_color_blue
+    type: int
+    restore_value: true
+    initial_value: "0"
+
+script:
+  - id: apply_light_state
+    then:
+      - lambda: |-
+          if (id(light_mode) == 0) {
+            id(backlight).turn_off().perform();
+          } else if (id(light_mode) == 1) {
+            id(backlight).turn_on().set_effect("strobe").perform();
+          } else if (id(light_mode) == 2) {
+            id(backlight).turn_on()
+              .set_effect("None")
+              .set_rgb((float)id(light_color_red)/255.0, (float)id(light_color_green)/255.0, (float)id(light_color_blue)/255.0)
+              .set_brightness((float)id(light_brightness)/255.0)
+              .perform();
+          }
 
 esp32_ble_server:
   manufacturer: "CycloPi"
@@ -52,13 +78,7 @@ esp32_ble_server:
                   uint8_t mode = x[0];
                   ESP_LOGD("ble", "Light mode written: %d", mode);
                   id(light_mode) = mode;
-                  if (mode == 0) {
-                    id(backlight).turn_off().perform();
-                  } else if (mode == 1) {
-                    id(backlight).turn_on().set_effect("strobe").perform();
-                  } else if (mode == 2) {
-                    id(backlight).turn_on().set_effect("None").set_brightness((float)id(light_brightness) / 255.0).perform();
-                  }
+              - script.execute: apply_light_state
 
         # Brightness characteristic
         - id: light_brightness_char
@@ -79,9 +99,31 @@ esp32_ble_server:
                   uint8_t b = x[0];
                   id(light_brightness) = b;
                   ESP_LOGD("ble", "Brightness written: %d", id(light_brightness));
-                  if (id(light_mode) == 2) {
-                    id(backlight).turn_on().set_brightness((float)b / 255.0).perform();
-                  }
+              - script.execute: apply_light_state
+
+        # Color characteristic (RGB)
+        - id: light_color_char
+          uuid: "abcdef03-1234-5678-1234-56789abcdef0"
+          description: "Backlight Color RGB"
+          read: true
+          write: true
+          notify: true
+          value: "0xFF0000"  # red as default
+          descriptors:
+            - uuid: 2901
+              value: "Set light color: RGB bytes 0-255"
+          on_write:
+            then:
+              - lambda: |-
+                  uint8_t r = x[0];
+                  uint8_t g = x[1];
+                  uint8_t b = x[2];
+                  id(light_color_red)   = r;
+                  id(light_color_green) = g;
+                  id(light_color_blue)  = b;
+                  ESP_LOGD("ble", "Color written: R=%d G=%d B=%d", r, g, b);
+              - script.execute: apply_light_state
+
 
 # Sync BLE characteristics every 5s
 interval:
@@ -97,6 +139,11 @@ interval:
           value: !lambda "return std::vector<uint8_t>{ (uint8_t)id(light_brightness) };"
       - ble_server.characteristic.notify:
           id: light_brightness_char
+      - ble_server.characteristic.set_value:
+          id: light_color_char
+          value: !lambda "return std::vector<uint8_t>{ (uint8_t)id(light_color_red), (uint8_t)id(light_color_green), (uint8_t)id(light_color_blue) };"
+      - ble_server.characteristic.notify:
+          id: light_color_char
 
 light:
   - platform: esp32_rmt_led_strip
@@ -105,7 +152,7 @@ light:
     id: backlight
     pin: GPIO14
     num_leds: 64
-    # color_correct: [40%, 40%, 40%]
+    color_correct: [100%, 70%, 100%]
     effects:
       - strobe:
           name: 'strobe'
@@ -119,8 +166,8 @@ light:
             - state: true
               brightness: 100%
               red: 100%
-              green: 50%
+              green: 75%
               blue: 0%
-              duration: 250ms
+              duration: 50ms
             - state: false
               duration: 150ms
