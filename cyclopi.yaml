@@ -1,0 +1,96 @@
+esphome:
+  name: "cyclopi"
+  friendly_name: "CycloPi"
+  comment: "CycloPi Backlight"
+  platformio_options:
+    board_build.flash_mode: dio
+  on_boot:
+    then:
+      - light.turn_on:
+          id: backlight
+          effect: "strobe"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+logger:
+
+esp32_ble_server:
+  manufacturer: "CycloPi"
+  model: "Backlight"
+  appearance: 0
+  firmware_version: "v1.0.0"
+  manufacturer_data: [76, 0, 35, 119]
+  on_connect:
+    - logger.log: "BLE client connected"
+  on_disconnect:
+    - logger.log: "BLE client disconnected"
+  services:
+    - uuid: "12345678-1234-5678-1234-56789abcdef0"
+      advertise: true
+      characteristics:
+        - id: light_switch
+          uuid: "abcdef01-1234-5678-1234-56789abcdef0"
+          description: "Light On/Off"
+          read: true
+          write: true
+          notify: true
+          value:
+            type: uint8_t
+            data: 0
+          descriptors:
+            - uuid: 2901
+              value: "Turn light on/off"
+          on_write:
+            then:
+              - lambda: |-
+                  ESP_LOGD("ble", "Characteristic written with value: %d", x[0]);
+                  if (x[0] == 0x01) {
+                      ESP_LOGD("ble", "Turn on light");
+                      auto call = id(backlight).turn_on();
+                      call.set_effect("strobe");
+                      call.perform();
+                  } else {
+                      ESP_LOGD("ble", "Turn off light");
+                      id(backlight).turn_off().perform();
+                  }
+
+# Sync BLE characteristic with actual light state
+# This ensures that if the light changes (via HA, button, etc.), BLE clients are updated
+interval:
+  - interval: 5s
+    then:
+      - ble_server.characteristic.set_value:
+          id: light_switch
+          value: !lambda "return std::vector<uint8_t>{ (uint8_t)(id(backlight).current_values.get_state() ? 1 : 0) };"
+      - ble_server.characteristic.notify:
+          id: light_switch
+
+light:
+  - platform: esp32_rmt_led_strip
+    rgb_order: RGB
+    chipset: ws2811
+    id: backlight
+    pin: GPIO14
+    num_leds: 64
+    color_correct: [40%, 40%, 40%]
+    effects:
+      - strobe:
+          name: 'strobe'
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 300ms
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 50%
+              blue: 0%
+              duration: 250ms
+            - state: false
+              duration: 150ms
