@@ -17,23 +17,26 @@ esp32:
 
 logger:
 
+globals:
+  - id: light_mode
+    type: int
+    initial_value: "2"  # 0 = off, 1 = solid, 2 = strobe
+  - id: light_brightness
+    type: int
+    restore_value: True
+    initial_value: "255"  # full brightness 0-255
+
 esp32_ble_server:
   manufacturer: "CycloPi"
   model: "Backlight"
-  appearance: 0
-  firmware_version: "v1.0.0"
-  manufacturer_data: [76, 0, 35, 119]
-  on_connect:
-    - logger.log: "BLE client connected"
-  on_disconnect:
-    - logger.log: "BLE client disconnected"
   services:
     - uuid: "12345678-1234-5678-1234-56789abcdef0"
       advertise: true
       characteristics:
-        - id: light_switch
+        # Light mode characteristic
+        - id: light_mode_char
           uuid: "abcdef01-1234-5678-1234-56789abcdef0"
-          description: "Light On/Off"
+          description: "Light Mode: 0=Off,1=Solid,2=Effect"
           read: true
           write: true
           notify: true
@@ -42,31 +45,58 @@ esp32_ble_server:
             data: 0
           descriptors:
             - uuid: 2901
-              value: "Turn light on/off"
+              value: "Set light mode: 0=Off,1=Solid,2=Effect"
           on_write:
             then:
               - lambda: |-
-                  ESP_LOGD("ble", "Characteristic written with value: %d", x[0]);
-                  if (x[0] == 0x01) {
-                      ESP_LOGD("ble", "Turn on light");
-                      auto call = id(backlight).turn_on();
-                      call.set_effect("strobe");
-                      call.perform();
-                  } else {
-                      ESP_LOGD("ble", "Turn off light");
-                      id(backlight).turn_off().perform();
+                  uint8_t mode = x[0];
+                  ESP_LOGD("ble", "Light mode written: %d", mode);
+                  id(light_mode) = mode;
+                  if (mode == 0) {
+                    id(backlight).turn_off().perform();
+                  } else if (mode == 1) {
+                    id(backlight).turn_on().set_effect("strobe").perform();
+                  } else if (mode == 2) {
+                    id(backlight).turn_on().set_effect("None").set_brightness((float)id(light_brightness) / 255.0).perform();
                   }
 
-# Sync BLE characteristic with actual light state
-# This ensures that if the light changes (via HA, button, etc.), BLE clients are updated
+        # Brightness characteristic
+        - id: light_brightness_char
+          uuid: "abcdef02-1234-5678-1234-56789abcdef0"
+          description: "Backlight Brightness (0-255)"
+          read: true
+          write: true
+          notify: true
+          value:
+            type: uint8_t
+            data: 255
+          descriptors:
+            - uuid: 2901
+              value: "Set light brightness 0-255"
+          on_write:
+            then:
+              - lambda: |-
+                  uint8_t b = x[0];
+                  id(light_brightness) = b;
+                  ESP_LOGD("ble", "Brightness written: %d", id(light_brightness));
+                  if (id(light_mode) == 2) {
+                    id(backlight).turn_on().set_brightness((float)b / 255.0).perform();
+                  }
+
+# Sync BLE characteristics every 5s
 interval:
   - interval: 5s
     then:
       - ble_server.characteristic.set_value:
-          id: light_switch
-          value: !lambda "return std::vector<uint8_t>{ (uint8_t)(id(backlight).current_values.get_state() ? 1 : 0) };"
+          id: light_mode_char
+          value: !lambda "return std::vector<uint8_t>{ (uint8_t)id(light_mode) };"
       - ble_server.characteristic.notify:
-          id: light_switch
+          id: light_mode_char
+      - ble_server.characteristic.set_value:
+          id: light_brightness_char
+          value: !lambda "return std::vector<uint8_t>{ (uint8_t)id(light_brightness) };"
+      - ble_server.characteristic.notify:
+          id: light_brightness_char
 
 light:
   - platform: esp32_rmt_led_strip
@@ -75,7 +105,7 @@ light:
     id: backlight
     pin: GPIO14
     num_leds: 64
-    color_correct: [40%, 40%, 40%]
+    # color_correct: [40%, 40%, 40%]
     effects:
       - strobe:
           name: 'strobe'
