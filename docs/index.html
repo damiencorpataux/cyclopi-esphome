@@ -73,14 +73,8 @@
 
     <hr>
 
-    <div class="row">
-      <button id="read" class="muted" disabled>Read State</button>
-      <button id="subscribe" class="muted" disabled>Subscribe</button>
-    </div>
-
     <p class="small">
       Status: <span id="status" class="pill mono">idle</span><br/>
-      Value: <span id="value" class="pill mono">—</span>
     </p>
   </div>
 
@@ -98,7 +92,6 @@
     // ==== UI helpers ====
     const $ = sel => document.querySelector(sel);
     const setStatus = s => $("#status").textContent = s;
-    const setValue  = v => $("#value").textContent  = v;
 
     const btn = {
       connect:          $("#connect"),
@@ -106,8 +99,6 @@
       on:               $("#on"),
       off:              $("#off"),
       solid:            $("#solid"),
-      read:             $("#read"),
-      subscribe:        $("#subscribe"),
       brightness:       $("#brightness"),
       brightness_value: $("#brightness-value"),
       color:            $("#color")
@@ -119,8 +110,6 @@
       btn.off.disabled        = !connected;
       btn.on.disabled         = !connected;
       btn.solid.disabled      = !connected;
-      btn.read.disabled       = !connected;
-      btn.subscribe.disabled  = !connected;
       btn.brightness.disabled = !connected;
       btn.color.disabled = !connected;
     }
@@ -169,34 +158,41 @@
       enableControls(true);
       setStatus("connected");
 
-      // Read initial brightness
-      const val_brightness_raw = await ble.characteristic.brightness.readValue();
-      const val_brightness = val_brightness_raw.getUint8(0);
-      btn.brightness.value = val_brightness;
-      btn.brightness_value.textContent = val_brightness;
+      // Subscribe to brightness
+      ble.characteristic.brightness.startNotifications().then(() => {
+          ble.characteristic.brightness.addEventListener("characteristicvaluechanged", e => {
+              const dv = e.target.value;
+              const val_brightness = dv.getUint8(0);
+              btn.brightness.value = val_brightness;
+              btn.brightness_value.textContent = val_brightness;
+          });
+      });
 
-      // Read initial brightness
-      const val_color = await ble.characteristic.color.readValue();
-      const r = val_color.getUint8(0);
-      const g = val_color.getUint8(1);
-      const b = val_color.getUint8(2);
-      // Convert to hex string #RRGGBB
-      const hex = "#" + r.toString(16).padStart(2, "0")
-                      + g.toString(16).padStart(2, "0")
-                      + b.toString(16).padStart(2, "0");
-      btn.color.value = hex;  // Initialize color picker
+      // Subscribe to color
+      ble.characteristic.color.startNotifications().then(() => {
+          ble.characteristic.color.addEventListener("characteristicvaluechanged", e => {
+              const dv = e.target.value;
+              const r = dv.getUint8(0);
+              const g = dv.getUint8(1);
+              const b = dv.getUint8(2);
+              // Convert to hex string #RRGGBB
+              const hex = "#" + r.toString(16).padStart(2, "0")
+                              + g.toString(16).padStart(2, "0")
+                              + b.toString(16).padStart(2, "0");
+              btn.color.value = hex;  // Initialize color picker
+          });
+      });
 
       // Subscribe and display sensor values (accel, gyro & temp)
-      subscribeSensor(ble.characteristic.accel, "#accel-val", 3);
-      subscribeSensor(ble.characteristic.gyro, "#gyro-val", 3);
-      subscribeSensor(ble.characteristic.temp, "#temp-val", 1);
+      subscribeDisplay(ble.characteristic.accel, "#accel-val", 3);
+      subscribeDisplay(ble.characteristic.gyro, "#gyro-val", 3);
+      subscribeDisplay(ble.characteristic.temp, "#temp-val", 1);
     }
 
     async function disconnect() {
       if (ble.device?.gatt?.connected) ble.device.gatt.disconnect();
       enableControls(false);
       setStatus("disconnected");
-      setValue("—");
     }
 
     function onDisconnected() {
@@ -204,47 +200,16 @@
       setStatus("disconnected");
     }
 
-    async function readLightMode() {
-      if (!ble.characteristic.light_mode) throw new Error("Not connected");
-      const dv = await ble.characteristic.light_mode.readValue();
-      const val = dv.getUint8(0);
-      setValue(val);
-      setStatus(`read ${val}`);
-      return val;
-    }
+    // async function readLightMode() {
+    //   if (!ble.characteristic.light_mode) throw new Error("Not connected");
+    //   const dv = await ble.characteristic.light_mode.readValue();
+    //   const val = dv.getUint8(0);
+    //   setValue(val);
+    //   setStatus(`read ${val}`);
+    //   return val;
+    // }
 
-    async function writeLightMode(v) {
-      if (!ble.characteristic.light_mode) throw new Error("Not connected");
-      await ble.characteristic.light_mode.writeValue(Uint8Array.of(v & 0xff));
-      setStatus(`wrote ${v}`);
-    }
-
-    async function writeBrightness(v) {
-      if (!ble.characteristic.brightness) throw new Error("Not connected");
-      await ble.characteristic.brightness.writeValue(Uint8Array.of(v & 0xff));
-      btn.brightness_value.textContent = v;
-      setStatus(`brightness ${v}`);
-    }
-
-    async function writeColor(r, g, b) {
-      if (!ble.characteristic.color) throw new Error("Not connected");
-      await ble.characteristic.color.writeValue(Uint8Array.of(r, g, b));
-      setStatus(`color set to rgb(${r},${g},${b})`);
-    }
-
-    async function subscribe() {
-      if (!ble.characteristic.light_mode) throw new Error("Not connected");
-      await ble.characteristic.light_mode.startNotifications();
-      ble.characteristic.light_mode.addEventListener('characteristicvaluechanged', (e) => {
-        const v = e.target.value.getUint8(0);
-        setValue(v);
-        setStatus(`notified ${v}`);
-      });
-      btn.subscribe.disabled = true;
-      setStatus("subscribed");
-    }
-
-    function subscribeSensor(charHandle, selector, count = 1) {
+    function subscribeDisplay(charHandle, selector, count = 1) {
         charHandle.startNotifications().then(() => {
             charHandle.addEventListener("characteristicvaluechanged", e => {
                 const dv = e.target.value;
@@ -264,6 +229,24 @@
         });
     }
 
+    async function writeLightMode(v) {
+      if (!ble.characteristic.light_mode) throw new Error("Not connected");
+      await ble.characteristic.light_mode.writeValue(Uint8Array.of(v & 0xff));
+      setStatus(`set mode ${v}`);
+    }
+
+    async function writeBrightness(v) {
+      if (!ble.characteristic.brightness) throw new Error("Not connected");
+      await ble.characteristic.brightness.writeValue(Uint8Array.of(v & 0xff));
+      btn.brightness_value.textContent = v;
+      setStatus(`set brightness ${v}`);
+    }
+
+    async function writeColor(r, g, b) {
+      if (!ble.characteristic.color) throw new Error("Not connected");
+      await ble.characteristic.color.writeValue(Uint8Array.of(r, g, b));
+      setStatus(`set color to rgb(${r},${g},${b})`);
+    }
 
     // ==== Wire up UI ====
     btn.connect.addEventListener('click', () => connect().catch(err => { setStatus(err.message); console.error(err); }));
@@ -271,8 +254,6 @@
     btn.off.addEventListener('click', () => writeLightMode(0).catch(err => { setStatus(err.message); console.error(err); }));
     btn.on.addEventListener('click', () => writeLightMode(1).catch(err => { setStatus(err.message); console.error(err); }));
     btn.solid.addEventListener('click', () => writeLightMode(2).catch(err => { setStatus(err.message); console.error(err); }));
-    btn.read.addEventListener('click', () => readLightMode().catch(err => { setStatus(err.message); console.error(err); }));
-    btn.subscribe.addEventListener('click', () => subscribe().catch(err => { setStatus(err.message); console.error(err); }));
     btn.brightness.addEventListener('input', e => {
       const val = parseInt(e.target.value);
       writeBrightness(val).catch(console.error);
