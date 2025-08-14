@@ -58,10 +58,35 @@ script:
               .set_brightness((float)id(light_brightness)/255.0)
               .perform();
           }
+          id(update_ble_characteristics).execute();
+
+  - id: update_ble_characteristics
+    then:
+      - lambda: |-
+          id(light_mode_char).set_value(std::vector<uint8_t>{(uint8_t)id(light_mode)});
+          id(light_mode_char).notify();
+
+          id(light_brightness_char).set_value(std::vector<uint8_t>{(uint8_t)id(light_brightness)});
+          id(light_brightness_char).notify();
+
+          id(light_color_char).set_value(std::vector<uint8_t>{
+            (uint8_t)id(light_color_red),
+            (uint8_t)id(light_color_green),
+            (uint8_t)id(light_color_blue)
+          });
+          id(light_color_char).notify();
 
 esp32_ble_server:
   manufacturer: "CycloPi"
   model: "Backlight"
+  on_connect:
+    then:
+      - delay: 2s
+      - script.execute: update_ble_characteristics
+      - delay: 2s
+      - script.execute: update_ble_characteristics
+      - delay: 2s
+      - script.execute: update_ble_characteristics
   services:
     - uuid: "12345678-1234-5678-1234-56789abcdef0"
       advertise: true
@@ -157,21 +182,6 @@ esp32_ble_server:
 interval:
   - interval: 1s
     then:
-      - ble_server.characteristic.set_value:
-          id: light_mode_char
-          value: !lambda "return std::vector<uint8_t>{ (uint8_t)id(light_mode) };"
-      - ble_server.characteristic.notify:
-          id: light_mode_char
-      - ble_server.characteristic.set_value:
-          id: light_brightness_char
-          value: !lambda "return std::vector<uint8_t>{ (uint8_t)id(light_brightness) };"
-      - ble_server.characteristic.notify:
-          id: light_brightness_char
-      - ble_server.characteristic.set_value:
-          id: light_color_char
-          value: !lambda "return std::vector<uint8_t>{ (uint8_t)id(light_color_red), (uint8_t)id(light_color_green), (uint8_t)id(light_color_blue) };"
-      - ble_server.characteristic.notify:
-          id: light_color_char
       # Update accel values (3 floats)
       - lambda: |-
           float ax = id(accel_x).state;
@@ -198,6 +208,33 @@ interval:
           std::vector<uint8_t> temp_bytes(reinterpret_cast<uint8_t*>(&t), reinterpret_cast<uint8_t*>(&t) + sizeof(float));
           id(temp_char).set_value(temp_bytes);
           id(temp_char).notify();
+
+  # Shake detection
+  - interval: 50ms
+    then:
+      - lambda: |-
+          static unsigned long last_trigger = 0;
+          unsigned long now = millis();
+
+          float ax = id(accel_x).state;
+          float ay = id(accel_y).state;
+          float az = id(accel_z).state;
+          float magnitude = sqrt(ax*ax + ay*ay + az*az);
+
+          const float threshold = 6;  // m/s²
+          const unsigned long debounce = 500; // ms
+
+          if (magnitude > threshold && now - last_trigger > debounce) {
+            last_trigger = now;
+
+            // increment light mode modulo 3
+            id(light_mode) = (id(light_mode) + 1) % 3;
+
+            ESP_LOGD("shake", "Shake detected, new light mode: %d", id(light_mode));
+
+            // apply new light state via script
+            id(apply_light_state).execute();
+          }
 
 light:
   - platform: esp32_rmt_led_strip
