@@ -255,6 +255,6 @@ sensor:
     temperature:
       id: imu_temp
       name: "QMI8658 Temperature"
-      filters:
-        - offset: 34.0
+      # filters:
+      #   - offset: 34.0
     update_interval: 1s
