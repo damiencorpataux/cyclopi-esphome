@@ -4,6 +4,10 @@ esphome:
   comment: "CycloPi Backlight"
   platformio_options:
     board_build.flash_mode: dio
+  libraries:
+    - "Wire"
+    - "SPI"
+    - "SensorLib@0.2.1"  # Some change after v0.2.1 makes compiling fail
   on_boot:
     then:
       - script.execute: apply_light_state
@@ -12,6 +16,9 @@ esp32:
   board: esp32-s3-devkitc-1
   framework:
     type: arduino
+
+external_components:
+  - source: github://dala318/esphome-qmi8658
 
 logger:
 
@@ -59,6 +66,7 @@ esp32_ble_server:
     - uuid: "12345678-1234-5678-1234-56789abcdef0"
       advertise: true
       characteristics:
+
         # Light mode characteristic
         - id: light_mode_char
           uuid: "abcdef01-1234-5678-1234-56789abcdef0"
@@ -124,10 +132,30 @@ esp32_ble_server:
                   ESP_LOGD("ble", "Color written: R=%d G=%d B=%d", r, g, b);
               - script.execute: apply_light_state
 
+        # Acceleration XYZ (3x float32 = 12 bytes)
+        - id: accel_char
+          uuid: "abcdef10-1234-5678-1234-56789abcdef0"
+          description: "Acceleration X,Y,Z in m/s²"
+          read: true
+          notify: true
+
+        # Gyroscope XYZ (3x float32 = 12 bytes)
+        - id: gyro_char
+          uuid: "abcdef11-1234-5678-1234-56789abcdef0"
+          description: "Gyroscope X,Y,Z in °/s"
+          read: true
+          notify: true
+
+        # IMU Temperature (float32 = 4 bytes)
+        - id: temp_char
+          uuid: "abcdef12-1234-5678-1234-56789abcdef0"
+          description: "IMU Temperature in °C"
+          read: true
+          notify: true
 
 # Sync BLE characteristics every 5s
 interval:
-  - interval: 5s
+  - interval: 1s
     then:
       - ble_server.characteristic.set_value:
           id: light_mode_char
@@ -144,6 +172,32 @@ interval:
           value: !lambda "return std::vector<uint8_t>{ (uint8_t)id(light_color_red), (uint8_t)id(light_color_green), (uint8_t)id(light_color_blue) };"
       - ble_server.characteristic.notify:
           id: light_color_char
+      # Update accel values (3 floats)
+      - lambda: |-
+          float ax = id(accel_x).state;
+          float ay = id(accel_y).state;
+          float az = id(accel_z).state;
+          std::vector<uint8_t> accel_bytes(reinterpret_cast<uint8_t*>(&ax), reinterpret_cast<uint8_t*>(&ax) + sizeof(float));
+          accel_bytes.insert(accel_bytes.end(), reinterpret_cast<uint8_t*>(&ay), reinterpret_cast<uint8_t*>(&ay) + sizeof(float));
+          accel_bytes.insert(accel_bytes.end(), reinterpret_cast<uint8_t*>(&az), reinterpret_cast<uint8_t*>(&az) + sizeof(float));
+          id(accel_char).set_value(accel_bytes);
+          id(accel_char).notify();
+      # Update gyro values (3 floats)
+      - lambda: |-
+          float gx = id(gyro_x).state;
+          float gy = id(gyro_y).state;
+          float gz = id(gyro_z).state;
+          std::vector<uint8_t> gyro_bytes(reinterpret_cast<uint8_t*>(&gx), reinterpret_cast<uint8_t*>(&gx) + sizeof(float));
+          gyro_bytes.insert(gyro_bytes.end(), reinterpret_cast<uint8_t*>(&gy), reinterpret_cast<uint8_t*>(&gy) + sizeof(float));
+          gyro_bytes.insert(gyro_bytes.end(), reinterpret_cast<uint8_t*>(&gz), reinterpret_cast<uint8_t*>(&gz) + sizeof(float));
+          id(gyro_char).set_value(gyro_bytes);
+          id(gyro_char).notify();
+      # Update temperature value (1 float)
+      - lambda: |-
+          float t = id(imu_temp).state;
+          std::vector<uint8_t> temp_bytes(reinterpret_cast<uint8_t*>(&t), reinterpret_cast<uint8_t*>(&t) + sizeof(float));
+          id(temp_char).set_value(temp_bytes);
+          id(temp_char).notify();
 
 light:
   - platform: esp32_rmt_led_strip
@@ -171,3 +225,36 @@ light:
               duration: 50ms
             - state: false
               duration: 150ms
+
+i2c:
+  sda: GPIO11
+  scl: GPIO12
+
+sensor:
+  - platform: qmi8658
+    address: 0x6B
+    interrupt_pin_2: GPIO13
+    acceleration_x:
+      id: accel_x
+      name: "QMI8658 Acceleration X"
+    acceleration_y:
+      id: accel_y
+      name: "QMI8658 Acceleration Y"
+    acceleration_z:
+      id: accel_z
+      name: "QMI8658 Acceleration Z"
+    gyroscope_x:
+      id: gyro_x
+      name: "QMI8658 Gyro X"
+    gyroscope_y:
+      id: gyro_y
+      name: "QMI8658 Gyro Y"
+    gyroscope_z:
+      id: gyro_z
+      name: "QMI8658 Gyro Z"
+    temperature:
+      id: imu_temp
+      name: "QMI8658 Temperature"
+      filters:
+        - offset: 34.0
+    update_interval: 1s
