@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>CycloPi BLE (React + Babel)</title>
+
+    <!-- PWA meta -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#111111" />
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚲</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚲</text></svg>">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- React, ReactDOM, Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function App() {
+            const [connected, setConnected] = useState(false);
+            const [status, setStatus] = useState("idle");
+            const [brightness, setBrightness] = useState(128);
+            const [color, setColor] = useState("#808080");
+            const [accel, setAccel] = useState("—");
+            const [gyro, setGyro] = useState("—");
+            const [temp, setTemp] = useState("—");
+
+            const bleRef = useRef({
+                device: null,
+                server: null,
+                service: null,
+                characteristic: {},
+                uuid: {
+                service:    "12345678-1234-5678-1234-56789abcdef0",
+                light_mode: "abcdef01-1234-5678-1234-56789abcdef0",
+                brightness: "abcdef02-1234-5678-1234-56789abcdef0",
+                color:      "abcdef03-1234-5678-1234-56789abcdef0",
+                accel:      "abcdef10-1234-5678-1234-56789abcdef0",
+                gyro:       "abcdef11-1234-5678-1234-56789abcdef0",
+                temp:       "abcdef12-1234-5678-1234-56789abcdef0"
+                }
+            });
+
+            const writeTimeout = useRef(null);
+
+            useEffect(() => {
+                notifyUnsupported();
+                if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('sw.js').catch(console.error);
+                });
+                }
+            }, []);
+
+            function notifyUnsupported() {
+                if (!('bluetooth' in navigator)) {
+                setStatus("Web Bluetooth not supported");
+                alert("This browser doesn't support Web Bluetooth.\n\nAndroid: use Chrome.\niPhone/iOS: see notes in README.");
+                }
+            }
+
+            async function connect() {
+                try {
+                setStatus("requesting device…");
+                const ble = bleRef.current;
+                ble.device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: "cyclopi" }],
+                    optionalServices: [ble.uuid.service]
+                });
+                ble.device.addEventListener('gattserverdisconnected', onDisconnected);
+
+                setStatus("connecting…");
+                ble.server = await ble.device.gatt.connect();
+                ble.service = await ble.server.getPrimaryService(ble.uuid.service);
+
+                for (let key in ble.uuid) {
+                    if (key !== 'service') {
+                    ble.characteristic[key] = await ble.service.getCharacteristic(ble.uuid[key]);
+                    }
+                }
+
+                setConnected(true);
+                setStatus("connected");
+
+                subscribeBrightness();
+                subscribeColor();
+                subscribeDisplay(ble.characteristic.accel, setAccel);
+                subscribeDisplay(ble.characteristic.gyro, setGyro);
+                subscribeDisplay(ble.characteristic.temp, setTemp, 1);
+
+                } catch (err) {
+                setStatus(err.message);
+                console.error(err);
+                }
+            }
+
+            function disconnect() {
+                const ble = bleRef.current;
+                if (ble.device?.gatt?.connected) ble.device.gatt.disconnect();
+                setConnected(false);
+                setStatus("disconnected");
+            }
+
+            function onDisconnected() {
+                setConnected(false);
+                setStatus("disconnected");
+            }
+
+            function subscribeBrightness() {
+                const ble = bleRef.current;
+                ble.characteristic.brightness.startNotifications().then(() => {
+                ble.characteristic.brightness.addEventListener("characteristicvaluechanged", e => {
+                    setBrightness(e.target.value.getUint8(0));
+                });
+                });
+            }
+
+            function subscribeColor() {
+                const ble = bleRef.current;
+                ble.characteristic.color.startNotifications().then(() => {
+                ble.characteristic.color.addEventListener("characteristicvaluechanged", e => {
+                    const dv = e.target.value;
+                    const hex = "#" + [...Array(3)].map((_,i) => dv.getUint8(i).toString(16).padStart(2,"0")).join("");
+                    setColor(hex);
+                });
+                });
+            }
+
+            function subscribeDisplay(charHandle, setter, count = 3) {
+                charHandle.startNotifications().then(() => {
+                charHandle.addEventListener("characteristicvaluechanged", e => {
+                    const dv = e.target.value;
+                    if (count === 1) {
+                    setter(dv.getFloat32(0, true).toFixed(2));
+                    } else {
+                    const vals = [];
+                    for (let i = 0; i < count; i++) {
+                        vals.push(dv.getFloat32(i * 4, true).toFixed(2));
+                    }
+                    setter(vals.join(", "));
+                    }
+                });
+                });
+            }
+
+            async function writeLightMode(v) {
+                const ble = bleRef.current;
+                await ble.characteristic.light_mode.writeValue(Uint8Array.of(v & 0xff));
+                setStatus(`set mode ${v}`);
+            }
+
+            async function writeBrightnessNow(v) {
+                const ble = bleRef.current;
+                await ble.characteristic.brightness.writeValue(Uint8Array.of(v & 0xff));
+                setStatus(`set brightness ${v}`);
+            }
+
+            async function writeColorNow(hex) {
+                const ble = bleRef.current;
+                const r = parseInt(hex.slice(1,3),16);
+                const g = parseInt(hex.slice(3,5),16);
+                const b = parseInt(hex.slice(5,7),16);
+                await ble.characteristic.color.writeValue(Uint8Array.of(r, g, b));
+                setStatus(`set color to rgb(${r},${g},${b})`);
+            }
+
+            function debouncedWriteBrightness(val) {
+                clearTimeout(writeTimeout.current);
+                writeTimeout.current = setTimeout(() => {
+                writeBrightnessNow(val).catch(console.error);
+                }, 50);
+            }
+
+            function debouncedWriteColor(hex) {
+                clearTimeout(writeTimeout.current);
+                writeTimeout.current = setTimeout(() => {
+                writeColorNow(hex).catch(console.error);
+                }, 50);
+            }
+
+            return (
+                <div className="card">
+                <h1>🚲 CycloPi Backlight</h1>
+                <div className="row">
+                    <button className="primary" onClick={connect} disabled={connected}>Connect</button>
+                    <button className="muted" onClick={disconnect} disabled={!connected}>Disconnect</button>
+                </div>
+
+                <div className="row">
+                    <button className="danger" onClick={() => writeLightMode(0)} disabled={!connected}>OFF</button>
+                    <button className="ok" onClick={() => writeLightMode(1)} disabled={!connected}>ON Backlight</button>
+                    <button className="ok" onClick={() => writeLightMode(2)} disabled={!connected}>ON Headlight</button>
+                </div>
+
+                <div className="row">
+                    <label style={{flex:1}}>Brightness: <span>{brightness}</span></label>
+                    <input type="range" min="0" max="255" value={brightness} disabled={!connected}
+                        onChange={e => { setBrightness(Number(e.target.value)); debouncedWriteBrightness(Number(e.target.value)); }} />
+                </div>
+
+                <div className="row">
+                    <label style={{flex:1}}>Color:</label>
+                    <input type="color" value={color} disabled={!connected}
+                        onChange={e => { setColor(e.target.value); debouncedWriteColor(e.target.value); }} />
+                </div>
+
+                <hr />
+
+                <div className="row small">
+                    <label style={{flex:1}}>Temperature:</label>
+                    <span className="pill mono">{temp}</span>
+                </div>
+                <div className="row small">
+                    <label style={{flex:1}}>Accel (m/s²):</label>
+                    <span className="pill mono">{accel}</span>
+                </div>
+                <div className="row small">
+                    <label style={{flex:1}}>Gyro (°/s):</label>
+                    <span className="pill mono">{gyro}</span>
+                </div>
+
+                <hr />
+
+                <p className="small">
+                    Status: <span className="pill mono">{status}</span>
+                </p>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
