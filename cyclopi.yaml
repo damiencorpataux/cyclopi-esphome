@@ -20,6 +20,9 @@ esp32:
 external_components:
   - source: github://dala318/esphome-qmi8658
 
+esp32_touch:
+  setup_mode: true
+
 logger:
 
 globals:
@@ -59,6 +62,13 @@ script:
               .perform();
           }
           id(update_ble_characteristics).execute();
+
+  - id: increment_light_mode
+    then:
+      - lambda: |-
+            id(light_mode) = (id(light_mode) + 1) % 3;
+            ESP_LOGD("switch_light_mode", "New light mode: %d", id(light_mode));
+            id(apply_light_state).execute();
 
   - id: update_ble_characteristics
     then:
@@ -209,7 +219,7 @@ interval:
           id(temp_char).set_value(temp_bytes);
           id(temp_char).notify();
 
-  # Shake detection
+  # Shake detection (change light mode)
   - interval: 50ms
     then:
       - lambda: |-
@@ -221,19 +231,15 @@ interval:
           float az = id(accel_z).state;
           float magnitude = sqrt(ax*ax + ay*ay + az*az);
 
-          const float threshold = 6;  // m/s²
+          const float threshold = 5.5;  // m/s²
           const unsigned long debounce = 500; // ms
 
           if (magnitude > threshold && now - last_trigger > debounce) {
             last_trigger = now;
 
-            // increment light mode modulo 3
-            id(light_mode) = (id(light_mode) + 1) % 3;
-
             ESP_LOGD("shake", "Shake detected, new light mode: %d", id(light_mode));
 
-            // apply new light state via script
-            id(apply_light_state).execute();
+            id(increment_light_mode).execute();
           }
 
 light:
@@ -295,3 +301,17 @@ sensor:
       # filters:
       #   - offset: 34.0
     update_interval: 1s
+
+binary_sensor:
+  # Touch button (change light mode)
+  - platform: esp32_touch
+    name: "CycloPi Touch"
+    id: touch_mode
+    pin: GPIO1
+    threshold: 500      # adjust experimentally
+    on_press:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Touch detected"
+        - script.execute: increment_light_mode
