@@ -42,6 +42,10 @@ globals:
     type: int
     restore_value: true
     initial_value: "0"
+  - id: shake_enabled
+    type: bool
+    restore_value: true
+    initial_value: "true"
 
 script:
   - id: apply_light_state
@@ -63,18 +67,25 @@ script:
   - id: update_ble_characteristics
     then:
       - lambda: |-
+          // Light mode
           id(light_mode_char).set_value(std::vector<uint8_t>{(uint8_t)id(light_mode)});
           id(light_mode_char).notify();
 
+          // Brightness
           id(light_brightness_char).set_value(std::vector<uint8_t>{(uint8_t)id(light_brightness)});
           id(light_brightness_char).notify();
 
+          // Color
           id(light_color_char).set_value(std::vector<uint8_t>{
             (uint8_t)id(light_color_red),
             (uint8_t)id(light_color_green),
             (uint8_t)id(light_color_blue)
           });
           id(light_color_char).notify();
+
+          // Shake detection toggle
+          id(shake_enable_char).set_value(std::vector<uint8_t>{ (uint8_t)(id(shake_enabled) ? 1 : 0) });
+          id(shake_enable_char).notify();
 
 esp32_ble_server:
   manufacturer: "CycloPi"
@@ -157,6 +168,26 @@ esp32_ble_server:
                   ESP_LOGD("ble", "Color written: R=%d G=%d B=%d", r, g, b);
               - script.execute: apply_light_state
 
+        # Shake Detection Toggle
+        - id: shake_enable_char
+          uuid: "abcdef04-1234-5678-1234-56789abcdef0"
+          description: "Enable/Disable Shake Detection (0=Off, 1=On)"
+          read: true
+          write: true
+          notify: true
+          value:
+            type: uint8_t
+            data: 1   # default enabled
+          descriptors:
+            - uuid: 2901
+              value: "Toggle shake detection"
+          on_write:
+            then:
+              - lambda: |-
+                  bool enabled = x[0] != 0;
+                  id(shake_enabled) = enabled;
+                  ESP_LOGD("ble", "Shake detection written: %s", enabled ? "enabled" : "disabled");
+
         # Acceleration XYZ (3x float32 = 12 bytes)
         - id: accel_char
           uuid: "abcdef10-1234-5678-1234-56789abcdef0"
@@ -213,6 +244,8 @@ interval:
   - interval: 50ms
     then:
       - lambda: |-
+          if (!id(shake_enabled)) return;  // shake disabled
+
           static unsigned long last_trigger = 0;
           unsigned long now = millis();
 

@@ -9,7 +9,7 @@ button:disabled { opacity: .6 }
 .danger  { background: #ff4567; }
 .ok      { background: #28c981; }
 .muted   { background: #2a2a2e; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9rem; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; }
 .pill { padding: 6px 10px; border-radius: 999px; background: #212125; display: inline-block; }
 .small { opacity: .8; font-size: .9rem; }
 input[type="range"] { width: 100%; }

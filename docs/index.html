@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <title>CycloPi BLE</title>
+    <title>CycloPi</title>
 
     <!-- PWA meta -->
     <link rel="manifest" href="manifest.webmanifest">
@@ -14,7 +14,10 @@
 </head>
 <body>
     <div class="card">
-        <h1>🚲 CycloPi Backlight</h1>
+        <h1>🚲 CycloPi Omnilight</h1>
+
+        <hr>
+
         <div class="row">
             <button id="connect" class="primary">Connect</button>
             <button id="disconnect" class="muted" disabled>Disconnect</button>
@@ -27,6 +30,8 @@
             <button id="solid"  class="ok" disabled>ON Headlight</button>
         </div>
 
+        <hr>
+
         <!-- Brightness Slider -->
         <div class="row">
             <label for="brightness" style="flex:1">Brightness: <span id="brightness-value">128</span></label>
@@ -37,6 +42,14 @@
         <div class="row">
             <label for="color" style="flex:1">Color:</label>
             <input type="color" id="color" disabled>
+        </div>
+
+        <hr>
+
+        <!-- Shake Detection Toggle -->
+        <div class="row">
+            <label for="shake-toggle" style="flex:1">Shake Detection:</label>
+            <input type="checkbox" id="shake-toggle" disabled>
         </div>
 
         <hr>
@@ -58,9 +71,9 @@
         <hr>
 
         <!-- Status Line -->
-        <p class="small">
+        <div class="small">
             Status: <span id="status" class="pill mono">idle</span><br/>
-        </p>
+        </div>
     </div>
     <a style="text-decoration:none; color:gray; display:block; text-align:center; font-size:66%" href="https://github.com/damiencorpataux/cyclopi-esphome">
         <svg height="32" aria-hidden="true" viewBox="0 0 24 24" version="1.1" width="32" data-view-component="true" class="github">
@@ -84,17 +97,19 @@
             solid:            $("#solid"),
             brightness:       $("#brightness"),
             brightness_value: $("#brightness-value"),
-            color:            $("#color")
+            color:            $("#color"),
+            shake_toggle:     $("#shake-toggle")
         };
 
         function enableControls(connected) {
-            btn.connect.disabled    = connected;
-            btn.disconnect.disabled = !connected;
-            btn.off.disabled        = !connected || ble.value.light_mode == 0;
-            btn.on.disabled         = !connected || ble.value.light_mode == 1;
-            btn.solid.disabled      = !connected || ble.value.light_mode == 2;
-            btn.brightness.disabled = !connected;
-            btn.color.disabled = !connected;
+            btn.connect.disabled      = connected;
+            btn.disconnect.disabled   = !connected;
+            btn.off.disabled          = !connected || ble.value.light_mode == 0;
+            btn.on.disabled           = !connected || ble.value.light_mode == 1;
+            btn.solid.disabled        = !connected || ble.value.light_mode == 2;
+            btn.shake_toggle.disabled = !connected;
+            btn.brightness.disabled   = !connected;
+            btn.color.disabled        = !connected;
         }
 
         function notifyUnsupported() {
@@ -117,13 +132,14 @@
                 light_mode: null
             },
             uuid: {
-                service:    "12345678-1234-5678-1234-56789abcdef0", // Service UUID
-                light_mode: "abcdef01-1234-5678-1234-56789abcdef0", // light mode (off, backlight, headlight)
-                brightness: "abcdef02-1234-5678-1234-56789abcdef0", // brightness
-                color:      "abcdef03-1234-5678-1234-56789abcdef0", // new BLE characteristic for RGB
-                accel:      "abcdef10-1234-5678-1234-56789abcdef0", // accel 3x float32
-                gyro:       "abcdef11-1234-5678-1234-56789abcdef0", // gyro 3x float32
-                temp:       "abcdef12-1234-5678-1234-56789abcdef0"  // temperature float32
+                service:      "12345678-1234-5678-1234-56789abcdef0", // Service UUID
+                light_mode:   "abcdef01-1234-5678-1234-56789abcdef0", // Shake detection toggle
+                shake_toggle: "abcdef04-1234-5678-1234-56789abcdef0", // replace with your BLE characteristic UUID
+                brightness:   "abcdef02-1234-5678-1234-56789abcdef0", // brightness
+                color:        "abcdef03-1234-5678-1234-56789abcdef0", // new BLE characteristic for RGB
+                accel:        "abcdef10-1234-5678-1234-56789abcdef0", // accel 3x float32
+                gyro:         "abcdef11-1234-5678-1234-56789abcdef0", // gyro 3x float32
+                temp:         "abcdef12-1234-5678-1234-56789abcdef0"  // temperature float32
             }
         };
 
@@ -144,6 +160,7 @@
             ble.server = await ble.device.gatt.connect();
             ble.service = await ble.server.getPrimaryService(ble.uuid.service);
             ble.characteristic.light_mode = await ble.service.getCharacteristic(ble.uuid.light_mode);
+            ble.characteristic.shake_toggle = await ble.service.getCharacteristic(ble.uuid.shake_toggle);
             ble.characteristic.brightness = await ble.service.getCharacteristic(ble.uuid.brightness);
             ble.characteristic.color = await ble.service.getCharacteristic(ble.uuid.color);
             ble.characteristic.accel = await ble.service.getCharacteristic(ble.uuid.accel);
@@ -159,6 +176,15 @@
                     const dv = e.target.value;
                     ble.value.light_mode = dv.getUint8(0);
                     enableControls(true);
+                });
+            });
+
+            // Subscribe to shake toggle
+            ble.characteristic.shake_toggle.startNotifications().then(() => {
+                ble.characteristic.shake_toggle.addEventListener("characteristicvaluechanged", e => {
+                    const dv = e.target.value;
+                    ble.value.shake_enabled = dv.getUint8(0) !== 0;
+                    btn.shake_toggle.checked = ble.value.shake_enabled;
                 });
             });
 
@@ -229,6 +255,12 @@
             setStatus(`set mode ${v}`);
         }
 
+        async function writeShake(enabled) {
+            if (!ble.characteristic.shake_toggle) throw new Error("Not connected");
+            await ble.characteristic.shake_toggle.writeValue(Uint8Array.of(enabled ? 1 : 0));
+            setStatus(`set shake detection ${enabled ? "enabled" : "disabled"}`);
+        }
+
         async function writeBrightness(v) {
             if (!ble.characteristic.brightness) throw new Error("Not connected");
             await ble.characteristic.brightness.writeValue(Uint8Array.of(v & 0xff));
@@ -265,6 +297,9 @@
             writeTimeout = setTimeout(() => {
                 writeColor(r, g, b).catch(console.error);
             }, 50); // wait n ms after last movement
+        });
+        btn.shake_toggle.addEventListener('change', e => {
+            writeShake(e.target.checked).catch(console.error);
         });
 
         // Progressive Web App service worker registration
