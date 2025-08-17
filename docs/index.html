@@ -35,7 +35,7 @@
 
         <!-- Brightness Slider -->
         <div class="row">
-            <label for="brightness" style="flex:1">Brightness: <span id="brightness-value">128</span></label>
+            <label for="brightness" style="flex:1">Brightness: <span id="brightness-value">-</span></label>
             <input type="range" id="brightness" min="1" max="255" value="128" style="flex:1" disabled>
         </div>
 
@@ -57,6 +57,11 @@
         <div class="row">
             <label for="shake-toggle" style="flex:1">Shake Detection:</label>
             <input type="checkbox" id="shake-toggle" disabled>
+        </div>
+        <!-- Shake Detection Threshold Slider -->
+        <div class="row">
+            <label for="shake-threshold" style="flex:1">Shake Threshold: <span id="shake-threshold-value">-</span></label>
+            <input type="range" id="shake-threshold" min="1.0" max="10.0" value="6.0" style="flex:1" disabled>
         </div>
 
         <hr>
@@ -97,30 +102,33 @@
         const setStatus = s => $("#status").textContent = s;
 
         const btn = {
-            connect:          $("#connect"),
-            disconnect:       $("#disconnect"),
-            on_back:          $("#on_back"),
-            off:              $("#off"),
-            on_head:          $("#on_head"),
-            on_effect:        $("#on_effect"),
-            brightness:       $("#brightness"),
-            brightness_value: $("#brightness-value"),
-            color:            $("#color"),
-            effects:          $("#effects"),
-            shake_toggle:     $("#shake-toggle")
+            connect:                $("#connect"),
+            disconnect:             $("#disconnect"),
+            on_back:                $("#on_back"),
+            off:                    $("#off"),
+            on_head:                $("#on_head"),
+            on_effect:              $("#on_effect"),
+            brightness:             $("#brightness"),
+            brightness_value:       $("#brightness-value"),
+            color:                  $("#color"),
+            effects:                $("#effects"),
+            shake_toggle:           $("#shake-toggle"),
+            shake_threshold:        $("#shake-threshold"),
+            shake_threshold_value:  $("#shake-threshold-value")
         };
 
         function enableControls(connected) {
-            btn.connect.disabled      = connected;
-            btn.disconnect.disabled   = !connected;
-            btn.off.disabled          = !connected || ble.value.light_mode == 0;
-            btn.on_back.disabled      = !connected || ble.value.light_mode == 1;
-            btn.on_head.disabled      = !connected || ble.value.light_mode == 2;
-            btn.on_effect.disabled    = !connected || ble.value.light_mode == 3;
-            btn.shake_toggle.disabled = !connected;
-            btn.brightness.disabled   = !connected;
-            btn.color.disabled        = !connected;
-            btn.effects.disabled      = !connected;
+            btn.connect.disabled         = connected;
+            btn.disconnect.disabled      = !connected;
+            btn.off.disabled             = !connected || ble.value.light_mode == 0;
+            btn.on_back.disabled         = !connected || ble.value.light_mode == 1;
+            btn.on_head.disabled         = !connected || ble.value.light_mode == 2;
+            btn.on_effect.disabled       = !connected || ble.value.light_mode == 3;
+            btn.shake_toggle.disabled    = !connected;
+            btn.shake_threshold.disabled = !connected;
+            btn.brightness.disabled      = !connected;
+            btn.color.disabled           = !connected;
+            btn.effects.disabled         = !connected;
         }
 
         function notifyUnsupported() {
@@ -143,15 +151,16 @@
                 light_mode: null
             },
             uuid: {
-                service:        "12345678-1234-5678-1234-56789abcdef0", // Service UUID
-                light_mode:     "abcdef01-1234-5678-1234-56789abcdef0", // Shake detection toggle
-                shake_toggle:   "abcdef04-1234-5678-1234-56789abcdef0", // replace with your BLE characteristic UUID
-                brightness:     "abcdef02-1234-5678-1234-56789abcdef0", // brightness
-                color:          "abcdef03-1234-5678-1234-56789abcdef0", // new BLE characteristic for RGB
-                current_effect: "abcdef06-1234-5678-1234-56789abcdef0", // current effect
-                accel:          "abcdef10-1234-5678-1234-56789abcdef0", // accel 3x float32
-                gyro:           "abcdef11-1234-5678-1234-56789abcdef0", // gyro 3x float32
-                temp:           "abcdef12-1234-5678-1234-56789abcdef0"  // temperature float32
+                service:         "12345678-1234-5678-1234-56789abcdef0", // Service UUID
+                light_mode:      "abcdef01-1234-5678-1234-56789abcdef0", // light mode
+                shake_toggle:    "abcdef04-1234-5678-1234-56789abcdef0", // shake toggle
+                shake_threshold: "abcdef05-1234-5678-1234-56789abcdef0", // shake threshold
+                brightness:      "abcdef02-1234-5678-1234-56789abcdef0", // brightness
+                color:           "abcdef03-1234-5678-1234-56789abcdef0", // new BLE characteristic for RGB
+                current_effect:  "abcdef06-1234-5678-1234-56789abcdef0", // current effect
+                accel:           "abcdef10-1234-5678-1234-56789abcdef0", // accel 3x float32
+                gyro:            "abcdef11-1234-5678-1234-56789abcdef0", // gyro 3x float32
+                temp:            "abcdef12-1234-5678-1234-56789abcdef0"  // temperature float32
             }
         };
 
@@ -173,6 +182,7 @@
             ble.service = await ble.server.getPrimaryService(ble.uuid.service);
             ble.characteristic.light_mode = await ble.service.getCharacteristic(ble.uuid.light_mode);
             ble.characteristic.shake_toggle = await ble.service.getCharacteristic(ble.uuid.shake_toggle);
+            ble.characteristic.shake_threshold = await ble.service.getCharacteristic(ble.uuid.shake_toggle);
             ble.characteristic.brightness = await ble.service.getCharacteristic(ble.uuid.brightness);
             ble.characteristic.color = await ble.service.getCharacteristic(ble.uuid.color);
             ble.characteristic.current_effect = await ble.service.getCharacteristic(ble.uuid.current_effect);
@@ -194,6 +204,20 @@
                 const dv = e.target.value;
                 ble.value.shake_enabled = dv.getUint8(0) !== 0;
                 btn.shake_toggle.checked = ble.value.shake_enabled;
+            });
+
+            // Subscribe to shake threshold notifications
+            await ble.characteristic.shake_threshold.startNotifications();
+            ble.characteristic.shake_threshold.addEventListener("characteristicvaluechanged", e => {
+                const dv = e.target.value;
+                console.log("Shake threshold raw:", dv, "length:", dv.byteLength);
+                if (dv.byteLength === 4) {
+                    const val_threshold = dv.getFloat32(0, true); // little endian
+                    btn.shake_threshold.value = val_threshold.toFixed(2);
+                    btn.shake_threshold_value.textContent = val_threshold.toFixed(2);
+                } else {
+                    console.warn("Unexpected threshold length:", dv.byteLength);
+                }
             });
 
             // Subscribe to brightness
@@ -287,10 +311,24 @@
             setStatus(`set mode ${v}`);
         }
 
-        async function writeShake(enabled) {
+        async function writeShakeToggle(enabled) {
             if (!ble.characteristic.shake_toggle) throw new Error("Not connected");
             await ble.characteristic.shake_toggle.writeValue(Uint8Array.of(enabled ? 1 : 0));
             setStatus(`set shake detection ${enabled ? "enabled" : "disabled"}`);
+        }
+
+        function writeShakeThreshold(value) {
+        }
+
+        async function writeShakeThreshold(v) {
+            if (!ble.characteristic.shake_threshold) throw new Error("Not connected");
+            // Create a 4-byte buffer
+            let buffer = new ArrayBuffer(4);
+            let view = new DataView(buffer);
+            view.setFloat32(0, v, true); // little-endian
+            await ble.characteristic.shake_threshold.writeValue(buffer).catch(console.error);
+            btn.shake_threshold_value.textContent = v;
+            setStatus(`set shake threshold ${v}`);
         }
 
         async function writeBrightness(v) {
@@ -343,7 +381,14 @@
             writeEffect(effectId);
         });
         btn.shake_toggle.addEventListener('change', e => {
-            writeShake(e.target.checked).catch(console.error);
+            writeShakeToggle(e.target.checked).catch(console.error);
+        });
+        btn.shake_threshold.addEventListener('change', e => {
+            const val = parseInt(e.target.value);
+            clearTimeout(writeTimeout);
+            writeTimeout = setTimeout(() => {
+                writeShakeThreshold(val).catch(console.error);
+            }, 50); // wait n ms after last movement
         });
 
         // Progressive Web App service worker registration

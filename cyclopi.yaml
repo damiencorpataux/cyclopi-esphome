@@ -50,6 +50,10 @@ globals:
     type: bool
     restore_value: true
     initial_value: "true"
+  - id: shake_threshold
+    type: float
+    restore_value: true
+    initial_value: "6.0"   # m/s² threshold for shake
 
 script:
   - id: apply_light_state
@@ -109,6 +113,12 @@ script:
           id(shake_enable_char).set_value(std::vector<uint8_t>{ (uint8_t)(id(shake_enabled) ? 1 : 0) });
           id(shake_enable_char).notify();
 
+          // Shake detection threshold
+          float threshold = id(shake_threshold);
+          auto *ptr = reinterpret_cast<uint8_t*>(&threshold);
+          std::vector<uint8_t> thr_bytes(ptr, ptr + sizeof(float));
+          id(shake_threshold_char).set_value(thr_bytes);
+          id(shake_threshold_char).notify();
 esp32_ble_server:
   manufacturer: "CycloPi"
   model: "Omnilight"
@@ -231,6 +241,35 @@ esp32_ble_server:
                   id(shake_enabled) = enabled;
                   ESP_LOGD("ble", "Shake detection written: %s", enabled ? "enabled" : "disabled");
 
+        # Shake Threshold
+        - id: shake_threshold_char
+          uuid: "abcdef05-1234-5678-1234-56789abcdef0"
+          description: "Shake Threshold in m/s² (float32)"
+          read: true
+          write: true
+          notify: true
+          value: !lambda |-
+            float f = id(shake_threshold);
+            std::vector<uint8_t> data(sizeof(float));
+            memcpy(data.data(), &f, sizeof(float));
+            return data;
+          on_write:
+            then:
+              - lambda: |-
+                  if (x.size() == 4) {
+                    float new_threshold;
+                    memcpy(&new_threshold, x.data(), 4);  // read float from 4 bytes
+                    if (new_threshold < 1.0f) new_threshold = 1.0f;
+                    if (new_threshold > 30.0f) new_threshold = 30.0f;
+                    id(shake_threshold) = new_threshold;
+                    ESP_LOGD("ble", "New shake threshold: %.2f", new_threshold);
+                  } else {
+                    ESP_LOGW("ble", "Invalid threshold payload size: %d", x.size());
+                  }
+          descriptors:
+            - uuid: 2901
+              value: "Set shake threshold (float, m/s²)"
+
         # Acceleration XYZ (3x float32 = 12 bytes)
         - id: accel_char
           uuid: "abcdef10-1234-5678-1234-56789abcdef0"
@@ -287,7 +326,7 @@ interval:
   - interval: 50ms
     then:
       - lambda: |-
-          if (!id(shake_enabled)) return;  // shake disabled
+          if (!id(shake_enabled)) return;
 
           static unsigned long last_trigger = 0;
           unsigned long now = millis();
@@ -297,18 +336,15 @@ interval:
           float az = id(accel_z).state;
           float magnitude = sqrt(ax*ax + ay*ay + az*az);
 
-          const float threshold = 6;  // m/s²
           const unsigned long debounce = 500; // ms
+          float threshold = id(shake_threshold);
 
           if (magnitude > threshold && now - last_trigger > debounce) {
             last_trigger = now;
 
-            // increment light mode modulo 4 light modes
             id(light_mode) = (id(light_mode) + 1) % 4;
+            ESP_LOGD("shake", "Shake detected (%.2f > %.2f), new mode: %d", magnitude, threshold, id(light_mode));
 
-            ESP_LOGD("shake", "Shake detected, new light mode: %d", id(light_mode));
-
-            // apply new light state via script
             id(apply_light_state).execute();
           }
 
@@ -319,7 +355,7 @@ light:
     id: backlight
     pin: GPIO14
     num_leds: 64
-    color_correct: [100%, 70%, 100%]
+    color_correct: [100%, 75%, 100%]
     effects:
       - flicker:
           name: "Flicker"
@@ -334,13 +370,11 @@ light:
           name: 'Backlight'
           colors:
             - state: true
-              brightness: 100%
               red: 100%
               green: 0%
               blue: 0%
               duration: 300ms
             - state: true
-              brightness: 100%
               red: 100%
               green: 75%
               blue: 0%
