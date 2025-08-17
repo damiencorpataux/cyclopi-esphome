@@ -1,6 +1,6 @@
 # 🚲 CycloPi Omnilight
 
-A Minimalistic, DIY, Connected and Multiusage Light.
+A Minimalistic DIY, Connected and Multiusage Light.
 
 ## Bill of Material
 
@@ -14,17 +14,21 @@ A Minimalistic, DIY, Connected and Multiusage Light.
 
 ## Features
 
-* **4 light modes**:
-  * Backlight
-  * Frontlight
-  * Custom color, brightness & effect
-  * Off
-* **Shake detection** to change light mode (togglable)
-* **Adjustable** brightness and color (for frontlight)
+* **4 light modes**
+  * **Backlight**
+  * **Frontlight** - adjustable brightness
+  * **Custom** - color, brightness & effect
+  * **Off**
+* **Shake detection** to change light mode - togglable
 * **Control by application** via bluetooth
-* **Power via usb-c** (powerbank or phone)
+* **Power via usb-c** - powerbank or phone
 
-## Device Glimpse
+## Demo Glimpse
+
+Here is a demo, click to [view youtube video](https://www.youtube.com/watch?v=QqjXKdUir_g).
+
+[![CycloPi Demo](https://img.youtube.com/vi/QqjXKdUir_g/0.jpg)](https://www.youtube.com/watch?v=QqjXKdUir_g)
+
 
 Here is a *Waveshare ESP32-S3-Matrix* device.
 
