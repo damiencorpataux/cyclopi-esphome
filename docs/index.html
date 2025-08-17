@@ -26,8 +26,9 @@
         <!-- Light Mode Buttons -->
         <div class="row">
             <button id="off" class="danger" disabled>OFF</button>
-            <button id="on"  class="ok" disabled>ON Backlight</button>
-            <button id="solid"  class="ok" disabled>ON Headlight</button>
+            <button id="on_back"  class="ok" disabled>ON Backlight</button>
+            <button id="on_head"  class="ok" disabled>ON Headlight</button>
+            <button id="on_effect"  class="ok" disabled>ON Effect</button>
         </div>
 
         <hr>
@@ -42,6 +43,12 @@
         <div class="row">
             <label for="color" style="flex:1">Color:</label>
             <input type="color" id="color" disabled>
+        </div>
+
+        <!-- Effect -->
+        <div class="row">
+            <label for="effects" style="flex:1">Effect:</label>
+            <select id="effects" disabled></select>
         </div>
 
         <hr>
@@ -92,12 +99,14 @@
         const btn = {
             connect:          $("#connect"),
             disconnect:       $("#disconnect"),
-            on:               $("#on"),
+            on_back:          $("#on_back"),
             off:              $("#off"),
-            solid:            $("#solid"),
+            on_head:          $("#on_head"),
+            on_effect:        $("#on_effect"),
             brightness:       $("#brightness"),
             brightness_value: $("#brightness-value"),
             color:            $("#color"),
+            effects:          $("#effects"),
             shake_toggle:     $("#shake-toggle")
         };
 
@@ -105,11 +114,13 @@
             btn.connect.disabled      = connected;
             btn.disconnect.disabled   = !connected;
             btn.off.disabled          = !connected || ble.value.light_mode == 0;
-            btn.on.disabled           = !connected || ble.value.light_mode == 1;
-            btn.solid.disabled        = !connected || ble.value.light_mode == 2;
+            btn.on_back.disabled      = !connected || ble.value.light_mode == 1;
+            btn.on_head.disabled      = !connected || ble.value.light_mode == 2;
+            btn.on_effect.disabled    = !connected || ble.value.light_mode == 3;
             btn.shake_toggle.disabled = !connected;
             btn.brightness.disabled   = !connected;
             btn.color.disabled        = !connected;
+            btn.effects.disabled      = !connected;
         }
 
         function notifyUnsupported() {
@@ -132,14 +143,15 @@
                 light_mode: null
             },
             uuid: {
-                service:      "12345678-1234-5678-1234-56789abcdef0", // Service UUID
-                light_mode:   "abcdef01-1234-5678-1234-56789abcdef0", // Shake detection toggle
-                shake_toggle: "abcdef04-1234-5678-1234-56789abcdef0", // replace with your BLE characteristic UUID
-                brightness:   "abcdef02-1234-5678-1234-56789abcdef0", // brightness
-                color:        "abcdef03-1234-5678-1234-56789abcdef0", // new BLE characteristic for RGB
-                accel:        "abcdef10-1234-5678-1234-56789abcdef0", // accel 3x float32
-                gyro:         "abcdef11-1234-5678-1234-56789abcdef0", // gyro 3x float32
-                temp:         "abcdef12-1234-5678-1234-56789abcdef0"  // temperature float32
+                service:        "12345678-1234-5678-1234-56789abcdef0", // Service UUID
+                light_mode:     "abcdef01-1234-5678-1234-56789abcdef0", // Shake detection toggle
+                shake_toggle:   "abcdef04-1234-5678-1234-56789abcdef0", // replace with your BLE characteristic UUID
+                brightness:     "abcdef02-1234-5678-1234-56789abcdef0", // brightness
+                color:          "abcdef03-1234-5678-1234-56789abcdef0", // new BLE characteristic for RGB
+                current_effect: "abcdef06-1234-5678-1234-56789abcdef0", // current effect
+                accel:          "abcdef10-1234-5678-1234-56789abcdef0", // accel 3x float32
+                gyro:           "abcdef11-1234-5678-1234-56789abcdef0", // gyro 3x float32
+                temp:           "abcdef12-1234-5678-1234-56789abcdef0"  // temperature float32
             }
         };
 
@@ -163,12 +175,10 @@
             ble.characteristic.shake_toggle = await ble.service.getCharacteristic(ble.uuid.shake_toggle);
             ble.characteristic.brightness = await ble.service.getCharacteristic(ble.uuid.brightness);
             ble.characteristic.color = await ble.service.getCharacteristic(ble.uuid.color);
+            ble.characteristic.current_effect = await ble.service.getCharacteristic(ble.uuid.current_effect);
             ble.characteristic.accel = await ble.service.getCharacteristic(ble.uuid.accel);
             ble.characteristic.gyro  = await ble.service.getCharacteristic(ble.uuid.gyro);
             ble.characteristic.temp  = await ble.service.getCharacteristic(ble.uuid.temp);
-
-            enableControls(true);
-            setStatus("connected");
 
             // Subscribe to light mode
             ble.characteristic.light_mode.startNotifications().then(() => {
@@ -213,10 +223,38 @@
                 });
             });
 
+            // Populate effects drop-down
+            btn.effects.innerHTML = ""; // clear old options
+            // Static effects options using ids
+            const effects = [
+                'None', 'Flicker', 'Rainbow', 'Fireworks', 'Pulse'
+            ];
+            effects.forEach((effect, i) => {
+                const option = document.createElement("option");
+                option.value = i; // or effect if you prefer
+                option.textContent = effect;
+                btn.effects.appendChild(option);
+            });
+            // Subscribe to current effect changes
+            ble.characteristic.current_effect.startNotifications().then(() => {
+                ble.characteristic.current_effect.addEventListener("characteristicvaluechanged", e => {
+                    const effectIndex = e.target.value.getUint8(0);  
+                    // Make sure the index is valid
+                    if (effectIndex >= 0 && effectIndex < btn.effects.options.length) {
+                        btn.effects.selectedIndex = effectIndex;
+                    } else {
+                        console.warn("Received invalid effect index:", effectIndex);
+                    }
+                });
+            });
+
             // Subscribe and display sensor values (accel, gyro & temp)
             subscribeDisplay(ble.characteristic.accel, "#accel-val", 3);
             subscribeDisplay(ble.characteristic.gyro, "#gyro-val", 3);
             subscribeDisplay(ble.characteristic.temp, "#temp-val", 1);
+
+            enableControls(true);
+            setStatus("connected");
         }
 
         async function disconnect() {
@@ -271,15 +309,23 @@
         async function writeColor(r, g, b) {
             if (!ble.characteristic.color) throw new Error("Not connected");
             await ble.characteristic.color.writeValue(Uint8Array.of(r, g, b));
-            setStatus(`set color to rgb(${r},${g},${b})`);
+            setStatus(`set color rgb(${r},${g},${b})`);
+        }
+
+        async function writeEffect(id) {
+            if (!ble.characteristic.current_effect) throw new Error("Not connected");
+            const bytes = new Uint8Array([id]);  // Convert integer to Uint8Array (1 byte)
+            await ble.characteristic.current_effect.writeValue(bytes).catch(console.error);
+            setStatus(`set effect ${id}`);
         }
 
         // UI Wire Up
         btn.connect.addEventListener('click', () => connect().catch(err => { setStatus(err.message); console.error(err); }));
         btn.disconnect.addEventListener('click', () => disconnect().catch(console.error));
         btn.off.addEventListener('click', () => writeLightMode(0).catch(err => { setStatus(err.message); console.error(err); }));
-        btn.on.addEventListener('click', () => writeLightMode(1).catch(err => { setStatus(err.message); console.error(err); }));
-        btn.solid.addEventListener('click', () => writeLightMode(2).catch(err => { setStatus(err.message); console.error(err); }));
+        btn.on_back.addEventListener('click', () => writeLightMode(1).catch(err => { setStatus(err.message); console.error(err); }));
+        btn.on_head.addEventListener('click', () => writeLightMode(2).catch(err => { setStatus(err.message); console.error(err); }));
+        btn.on_effect.addEventListener('click', () => writeLightMode(3).catch(err => { setStatus(err.message); console.error(err); }));
         let writeTimeout;
         btn.brightness.addEventListener('input', e => {
             const val = parseInt(e.target.value);
@@ -297,6 +343,10 @@
             writeTimeout = setTimeout(() => {
                 writeColor(r, g, b).catch(console.error);
             }, 50); // wait n ms after last movement
+        });
+        btn.effects.addEventListener("change", e => {
+            const effectId = parseInt(e.target.value, 10); // ensure it's an integer
+            writeEffect(effectId);
         });
         btn.shake_toggle.addEventListener('change', e => {
             writeShake(e.target.checked).catch(console.error);

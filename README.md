@@ -14,7 +14,11 @@ A Minimalistic, DIY, Connected and Multiusage Light.
 
 ## Features
 
-* **3 light modes**: off, backlight, frontlight
+* **4 light modes**:
+  * Backlight
+  * Frontlight
+  * Custom color, brightness & effect
+  * Off
 * **Shake detection** to change light mode (togglable)
 * **Adjustable** brightness and color (for frontlight)
 * **Control by application** via bluetooth

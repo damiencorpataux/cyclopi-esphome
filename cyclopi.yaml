@@ -25,7 +25,7 @@ logger:
 globals:
   - id: light_mode
     type: int
-    initial_value: "2"  # 0 = off, 1 = solid, 2 = strobe
+    initial_value: "2"  # 0 = off, 1 = solid, 2 = Backlight
   - id: light_brightness
     type: int
     restore_value: true
@@ -42,6 +42,10 @@ globals:
     type: int
     restore_value: true
     initial_value: "0"
+  - id: light_effect_id
+    type: int
+    restore_value: true
+    initial_value: "0"
   - id: shake_enabled
     type: bool
     restore_value: true
@@ -52,15 +56,29 @@ script:
     then:
       - lambda: |-
           if (id(light_mode) == 0) {
-            id(backlight).turn_off().perform();
+              id(backlight).turn_off().perform();
           } else if (id(light_mode) == 1) {
-            id(backlight).turn_on().set_effect("strobe").perform();
+              id(backlight).turn_on().set_effect("Backlight").perform();
           } else if (id(light_mode) == 2) {
-            id(backlight).turn_on()
-              .set_effect("None")
-              .set_rgb((float)id(light_color_red)/255.0, (float)id(light_color_green)/255.0, (float)id(light_color_blue)/255.0)
-              .set_brightness((float)id(light_brightness)/255.0)
-              .perform();
+              id(backlight).turn_on()
+                .set_effect("None")
+                .set_rgb((float)1.0, 1.0, 1.0)
+                .set_brightness((float)id(light_brightness)/255.0)
+                .perform();
+          } else if (id(light_mode) == 3) {
+              auto effects = id(backlight).get_effects();
+              int idx = id(light_effect_id);  // your global integer
+              if (idx >= 0 && idx < effects.size()) {
+                  id(backlight).turn_on()
+                      .set_effect(idx)
+                      .set_rgb((float)id(light_color_red)/255.0,
+                              (float)id(light_color_green)/255.0,
+                              (float)id(light_color_blue)/255.0)
+                      .set_brightness((float)id(light_brightness)/255.0)
+                      .perform();
+              } else {
+                  ESP_LOGW("light", "Invalid effect_id: %d", idx);
+              }
           }
           id(update_ble_characteristics).execute();
 
@@ -82,6 +100,10 @@ script:
             (uint8_t)id(light_color_blue)
           });
           id(light_color_char).notify();
+
+          // Current Effect
+          id(light_current_effect_char).set_value(std::vector<uint8_t>{(uint8_t)id(light_effect_id)});
+          id(light_current_effect_char).notify();
 
           // Shake detection toggle
           id(shake_enable_char).set_value(std::vector<uint8_t>{ (uint8_t)(id(shake_enabled) ? 1 : 0) });
@@ -167,6 +189,27 @@ esp32_ble_server:
                   id(light_color_blue)  = b;
                   ESP_LOGD("ble", "Color written: R=%d G=%d B=%d", r, g, b);
               - script.execute: apply_light_state
+
+        # Current Effect Name
+        - id: light_current_effect_char
+          uuid: "abcdef06-1234-5678-1234-56789abcdef0"
+          description: "Current Light Effect Name"
+          read: true
+          write: true
+          notify: true
+          value: !lambda |-
+            return std::vector<uint8_t>{(uint8_t)id(light_effect_id)};
+          on_write:
+            then:
+              - lambda: |-
+                  if (!x.empty()) {
+                    id(light_effect_id) = x[0];
+                    ESP_LOGD("ble", "Effect ID written: %d", id(light_effect_id));
+                  }
+              - script.execute: apply_light_state
+          descriptors:
+            - uuid: 2901
+              value: "Current light effect"
 
         # Shake Detection Toggle
         - id: shake_enable_char
@@ -260,8 +303,8 @@ interval:
           if (magnitude > threshold && now - last_trigger > debounce) {
             last_trigger = now;
 
-            // increment light mode modulo 3
-            id(light_mode) = (id(light_mode) + 1) % 3;
+            // increment light mode modulo 4 light modes
+            id(light_mode) = (id(light_mode) + 1) % 4;
 
             ESP_LOGD("shake", "Shake detected, new light mode: %d", id(light_mode));
 
@@ -278,8 +321,17 @@ light:
     num_leds: 64
     color_correct: [100%, 70%, 100%]
     effects:
+      - flicker:
+          name: "Flicker"
+          intensity: 3%
+      - addressable_rainbow:
+          name: "Rainbow"
+      - addressable_fireworks:
+          name: "Fireworks"
+      - pulse:
+          name: "Pulse"
       - strobe:
-          name: 'strobe'
+          name: 'Backlight'
           colors:
             - state: true
               brightness: 100%
