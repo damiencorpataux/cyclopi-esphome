@@ -26,9 +26,9 @@
         <!-- Light Mode Buttons -->
         <div class="row">
             <button id="off" class="danger" disabled>OFF</button>
-            <button id="on_back"  class="ok" disabled>ON Backlight</button>
-            <button id="on_head"  class="ok" disabled>ON Headlight</button>
-            <button id="on_effect"  class="ok" disabled>ON Effect</button>
+            <button id="on_back" class="ok" disabled>ON Backlight</button>
+            <button id="on_head" class="ok" disabled>ON Headlight</button>
+            <button id="on_effect" class="ok" disabled>ON Effect</button>
         </div>
 
         <hr>
@@ -36,7 +36,7 @@
         <!-- Brightness Slider -->
         <div class="row">
             <label for="brightness" style="flex:1">Brightness: <span id="brightness-value">128</span></label>
-            <input type="range" id="brightness" min="0" max="255" value="128" disabled>
+            <input type="range" id="brightness" min="1" max="255" value="128" style="flex:1" disabled>
         </div>
 
         <!-- Color Picker -->
@@ -63,7 +63,7 @@
 
         <!-- Sensor Values (QMI8658) -->
         <div class="row small">
-            <label style="flex:1">Temperature:</label>
+            <label style="flex:1">Temperature (°C):</label>
             <span id="temp-val" class="pill mono">—</span>
         </div>
         <div class="row small">
