@@ -181,46 +181,42 @@
             ble.characteristic.temp  = await ble.service.getCharacteristic(ble.uuid.temp);
 
             // Subscribe to light mode
-            ble.characteristic.light_mode.startNotifications().then(() => {
-                ble.characteristic.light_mode.addEventListener("characteristicvaluechanged", e => {
-                    const dv = e.target.value;
-                    ble.value.light_mode = dv.getUint8(0);
-                    enableControls(true);
-                });
+            await ble.characteristic.light_mode.startNotifications();
+            ble.characteristic.light_mode.addEventListener("characteristicvaluechanged", e => {
+                const dv = e.target.value;
+                ble.value.light_mode = dv.getUint8(0);
+                enableControls(true);
             });
 
             // Subscribe to shake toggle
-            ble.characteristic.shake_toggle.startNotifications().then(() => {
-                ble.characteristic.shake_toggle.addEventListener("characteristicvaluechanged", e => {
-                    const dv = e.target.value;
-                    ble.value.shake_enabled = dv.getUint8(0) !== 0;
-                    btn.shake_toggle.checked = ble.value.shake_enabled;
-                });
+            await ble.characteristic.shake_toggle.startNotifications();
+            ble.characteristic.shake_toggle.addEventListener("characteristicvaluechanged", e => {
+                const dv = e.target.value;
+                ble.value.shake_enabled = dv.getUint8(0) !== 0;
+                btn.shake_toggle.checked = ble.value.shake_enabled;
             });
 
             // Subscribe to brightness
-            ble.characteristic.brightness.startNotifications().then(() => {
-                ble.characteristic.brightness.addEventListener("characteristicvaluechanged", e => {
-                    const dv = e.target.value;
-                    const val_brightness = dv.getUint8(0);
-                    btn.brightness.value = val_brightness;
-                    btn.brightness_value.textContent = val_brightness;
-                });
+            await ble.characteristic.brightness.startNotifications();
+            ble.characteristic.brightness.addEventListener("characteristicvaluechanged", e => {
+                const dv = e.target.value;
+                const val_brightness = dv.getUint8(0);
+                btn.brightness.value = val_brightness;
+                btn.brightness_value.textContent = val_brightness;
             });
 
             // Subscribe to color
-            ble.characteristic.color.startNotifications().then(() => {
-                ble.characteristic.color.addEventListener("characteristicvaluechanged", e => {
-                    const dv = e.target.value;
-                    const r = dv.getUint8(0);
-                    const g = dv.getUint8(1);
-                    const b = dv.getUint8(2);
-                    // Convert to hex string #RRGGBB
-                    const hex = "#" + r.toString(16).padStart(2, "0")
-                                + g.toString(16).padStart(2, "0")
-                                + b.toString(16).padStart(2, "0");
-                    btn.color.value = hex;  // Initialize color picker
-                });
+            await ble.characteristic.color.startNotifications();
+            ble.characteristic.color.addEventListener("characteristicvaluechanged", e => {
+                const dv = e.target.value;
+                const r = dv.getUint8(0);
+                const g = dv.getUint8(1);
+                const b = dv.getUint8(2);
+                // Convert to hex string #RRGGBB
+                const hex = "#" + r.toString(16).padStart(2, "0")
+                            + g.toString(16).padStart(2, "0")
+                            + b.toString(16).padStart(2, "0");
+                btn.color.value = hex;  // Initialize color picker
             });
 
             // Populate effects drop-down
@@ -236,22 +232,21 @@
                 btn.effects.appendChild(option);
             });
             // Subscribe to current effect changes
-            ble.characteristic.current_effect.startNotifications().then(() => {
-                ble.characteristic.current_effect.addEventListener("characteristicvaluechanged", e => {
-                    const effectIndex = e.target.value.getUint8(0);  
-                    // Make sure the index is valid
-                    if (effectIndex >= 0 && effectIndex < btn.effects.options.length) {
-                        btn.effects.selectedIndex = effectIndex;
-                    } else {
-                        console.warn("Received invalid effect index:", effectIndex);
-                    }
-                });
+            await ble.characteristic.current_effect.startNotifications();
+            ble.characteristic.current_effect.addEventListener("characteristicvaluechanged", e => {
+                const effectIndex = e.target.value.getUint8(0);  
+                // Make sure the index is valid
+                if (effectIndex >= 0 && effectIndex < btn.effects.options.length) {
+                    btn.effects.selectedIndex = effectIndex;
+                } else {
+                    console.warn("Received invalid effect index:", effectIndex);
+                }
             });
 
             // Subscribe and display sensor values (accel, gyro & temp)
-            subscribeDisplay(ble.characteristic.accel, "#accel-val", 3);
-            subscribeDisplay(ble.characteristic.gyro, "#gyro-val", 3);
-            subscribeDisplay(ble.characteristic.temp, "#temp-val", 1);
+            await subscribeDisplay(ble.characteristic.accel, "#accel-val", 3);
+            await subscribeDisplay(ble.characteristic.gyro, "#gyro-val", 3);
+            await subscribeDisplay(ble.characteristic.temp, "#temp-val", 1);
 
             enableControls(true);
             setStatus("connected");
@@ -269,21 +264,20 @@
         }
 
         // Subscribe and display bluetooth characteristic value
-        function subscribeDisplay(charHandle, selector, count = 1) {
-            charHandle.startNotifications().then(() => {
-                charHandle.addEventListener("characteristicvaluechanged", e => {
-                    const dv = e.target.value;
-                    if (count === 1) {
-                        const val = dv.getFloat32(0, true);
-                        document.querySelector(selector).textContent = val.toFixed(2);
-                    } else {
-                        const vals = [];
-                        for (let i = 0; i < count; i++) {
-                            vals.push(dv.getFloat32(i * 4, true).toFixed(2));
-                        }
-                        document.querySelector(selector).textContent = vals.join(" ");
+        async function subscribeDisplay(charHandle, selector, count = 1) {
+            await charHandle.startNotifications();
+            charHandle.addEventListener("characteristicvaluechanged", e => {
+                const dv = e.target.value;
+                if (count === 1) {
+                    const val = dv.getFloat32(0, true);
+                    document.querySelector(selector).textContent = val.toFixed(2);
+                } else {
+                    const vals = [];
+                    for (let i = 0; i < count; i++) {
+                        vals.push(dv.getFloat32(i * 4, true).toFixed(2));
                     }
-                });
+                    document.querySelector(selector).textContent = vals.join(" ");
+                }
             });
         }
 
