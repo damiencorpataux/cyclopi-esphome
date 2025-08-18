@@ -14,7 +14,10 @@
 </head>
 <body>
     <div class="card">
-        <h1>🚲 CycloPi Omnilight</h1>
+        <h1>
+            <span style="font-size:45px; margin-right:5px">🚲</span>
+            CycloPi Omnilight
+        </h1>
 
         <hr>
 
@@ -35,19 +38,22 @@
 
         <!-- Brightness Slider -->
         <div class="row">
-            <label for="brightness" style="flex:1">Brightness: <span id="brightness-value">128</span></label>
-            <input type="range" id="brightness" min="1" max="255" value="128" style="flex:1" disabled>
+            <label __for="brightness" style="flex:1">
+                Brightness
+                <span id="brightness-value" style="float:right"></span>
+            </label>
+            <input type="range" id="brightness" min="32" max="255" value="128" style="flex:1" disabled>
         </div>
 
         <!-- Color Picker -->
         <div class="row">
-            <label for="color" style="flex:1">Color:</label>
+            <label __for="color" style="flex:1">Color</label>
             <input type="color" id="color" disabled>
         </div>
 
         <!-- Effect -->
         <div class="row">
-            <label for="effects" style="flex:1">Effect:</label>
+            <label __for="effects" style="flex:1">Effect</label>
             <select id="effects" disabled></select>
         </div>
 
@@ -55,23 +61,47 @@
 
         <!-- Shake Detection Toggle -->
         <div class="row">
-            <label for="shake-toggle" style="flex:1">Shake Detection:</label>
+            <label __for="shake-toggle" style="flex:1" class="info">
+                Shake Detection
+            </label>
             <input type="checkbox" id="shake-toggle" disabled>
+            <template>
+                Shake detection lets you shake the device to change light mode.
+
+                On every shake, the light mode cycles through OFF, ON Backlight, ON Headlights and ON Effect.
+
+                You can disable the shake detection by unchecking the checkbox.
+            </template>
+        </div>
+
+        <!-- Overheat Protection Toggle -->
+        <div class="row">
+            <label __for="overheat-toggle" style="flex:1" class="info">
+                Overheat Protection
+            </label>
+            <input type="checkbox" id="overheat-toggle" disabled>
+            <template>
+                Overheat protection reduces the brightness of the light when the temperature is too high.
+
+                This prevent the device from being damaged, especially when running in a hot or closed environment.
+
+                It is not recommended to disable the overheat protection.
+            </template>
         </div>
 
         <hr>
 
         <!-- Sensor Values (QMI8658) -->
         <div class="row small">
-            <label style="flex:1">Temperature (°C):</label>
+            <label style="flex:1">Temperature (°C)</label>
             <span id="temp-val" class="pill mono">—</span>
         </div>
         <div class="row small">
-            <label style="flex:1">Accel (m/s²):</label>
+            <label style="flex:1">Accel (m/s²)</label>
             <span id="accel-val" class="pill mono">—</span>
         </div>
         <div class="row small">
-            <label style="flex:1">Gyro (°/s):</label>
+            <label style="flex:1">Gyro (°/s)</label>
             <span id="gyro-val" class="pill mono">—</span>
         </div>
 
@@ -107,20 +137,30 @@
             brightness_value: $("#brightness-value"),
             color:            $("#color"),
             effects:          $("#effects"),
-            shake_toggle:     $("#shake-toggle")
+            shake_toggle:     $("#shake-toggle"),
+            overheat_toggle:  $("#overheat-toggle")
         };
 
         function enableControls(connected) {
-            btn.connect.disabled      = connected;
-            btn.disconnect.disabled   = !connected;
-            btn.off.disabled          = !connected || ble.value.light_mode == 0;
-            btn.on_back.disabled      = !connected || ble.value.light_mode == 1;
-            btn.on_head.disabled      = !connected || ble.value.light_mode == 2;
-            btn.on_effect.disabled    = !connected || ble.value.light_mode == 3;
-            btn.shake_toggle.disabled = !connected;
-            btn.brightness.disabled   = !connected;
-            btn.color.disabled        = !connected;
-            btn.effects.disabled      = !connected;
+            btn.connect.disabled         = connected;
+            btn.disconnect.disabled      = !connected;
+            btn.off.disabled             = !connected || ble.value.light_mode == 0;
+            btn.on_back.disabled         = !connected || ble.value.light_mode == 1;
+            btn.on_head.disabled         = !connected || ble.value.light_mode == 2;
+            btn.on_effect.disabled       = !connected || ble.value.light_mode == 3;
+            btn.brightness.disabled      = !connected || ![2,3].includes(ble.value.light_mode);
+            btn.color.disabled           = !connected || ![3].includes(ble.value.light_mode);
+            btn.effects.disabled         = !connected || ![3].includes(ble.value.light_mode);
+            btn.shake_toggle.disabled    = !connected;
+            btn.overheat_toggle.disabled = !connected;
+            // Workaround for disabling <label> for <select> on Android Chrome
+            document.querySelectorAll('.row').forEach(row => {
+                const control = row.querySelector('input, select');
+                const label = row.querySelector('label');
+                if (control) {
+                    label.style.color = control.disabled ? 'gray' : '';
+                }
+            });
         }
 
         function notifyUnsupported() {
@@ -129,7 +169,6 @@
                 alert("This browser doesn't support Web Bluetooth.\n\nAndroid: use Chrome.\niPhone/iOS: see notes in README.");
             }
         }
-
         notifyUnsupported();
 
         // Core BLE logic
@@ -143,15 +182,16 @@
                 light_mode: null
             },
             uuid: {
-                service:        "12345678-1234-5678-1234-56789abcdef0", // Service UUID
-                light_mode:     "abcdef01-1234-5678-1234-56789abcdef0", // Shake detection toggle
-                shake_toggle:   "abcdef04-1234-5678-1234-56789abcdef0", // replace with your BLE characteristic UUID
-                brightness:     "abcdef02-1234-5678-1234-56789abcdef0", // brightness
-                color:          "abcdef03-1234-5678-1234-56789abcdef0", // new BLE characteristic for RGB
-                current_effect: "abcdef06-1234-5678-1234-56789abcdef0", // current effect
-                accel:          "abcdef10-1234-5678-1234-56789abcdef0", // accel 3x float32
-                gyro:           "abcdef11-1234-5678-1234-56789abcdef0", // gyro 3x float32
-                temp:           "abcdef12-1234-5678-1234-56789abcdef0"  // temperature float32
+                service:         "12345678-1234-5678-1234-56789abcdef0", // Service UUID
+                light_mode:      "abcdef01-1234-5678-1234-56789abcdef0", // light mode
+                brightness:      "abcdef02-1234-5678-1234-56789abcdef0", // brightness
+                color:           "abcdef03-1234-5678-1234-56789abcdef0", // new BLE characteristic for RGB
+                current_effect:  "abcdef06-1234-5678-1234-56789abcdef0", // current effect
+                shake_toggle:    "abcdef04-1234-5678-1234-56789abcdef0", // shake detection toggle
+                overheat_toggle: "abcdef05-1234-5678-1234-56789abcdef0", // overheat protection toggle
+                accel:           "abcdef10-1234-5678-1234-56789abcdef0", // accel 3x float32
+                gyro:            "abcdef11-1234-5678-1234-56789abcdef0", // gyro 3x float32
+                temp:            "abcdef12-1234-5678-1234-56789abcdef0"  // temperature float32
             }
         };
 
@@ -172,10 +212,11 @@
             ble.server = await ble.device.gatt.connect();
             ble.service = await ble.server.getPrimaryService(ble.uuid.service);
             ble.characteristic.light_mode = await ble.service.getCharacteristic(ble.uuid.light_mode);
-            ble.characteristic.shake_toggle = await ble.service.getCharacteristic(ble.uuid.shake_toggle);
             ble.characteristic.brightness = await ble.service.getCharacteristic(ble.uuid.brightness);
             ble.characteristic.color = await ble.service.getCharacteristic(ble.uuid.color);
             ble.characteristic.current_effect = await ble.service.getCharacteristic(ble.uuid.current_effect);
+            ble.characteristic.shake_toggle = await ble.service.getCharacteristic(ble.uuid.shake_toggle);
+            ble.characteristic.overheat_toggle = await ble.service.getCharacteristic(ble.uuid.overheat_toggle);
             ble.characteristic.accel = await ble.service.getCharacteristic(ble.uuid.accel);
             ble.characteristic.gyro  = await ble.service.getCharacteristic(ble.uuid.gyro);
             ble.characteristic.temp  = await ble.service.getCharacteristic(ble.uuid.temp);
@@ -186,14 +227,6 @@
                 const dv = e.target.value;
                 ble.value.light_mode = dv.getUint8(0);
                 enableControls(true);
-            });
-
-            // Subscribe to shake toggle
-            await ble.characteristic.shake_toggle.startNotifications();
-            ble.characteristic.shake_toggle.addEventListener("characteristicvaluechanged", e => {
-                const dv = e.target.value;
-                ble.value.shake_enabled = dv.getUint8(0) !== 0;
-                btn.shake_toggle.checked = ble.value.shake_enabled;
             });
 
             // Subscribe to brightness
@@ -243,6 +276,22 @@
                 }
             });
 
+            // Subscribe to shake toggle
+            await ble.characteristic.shake_toggle.startNotifications();
+            ble.characteristic.shake_toggle.addEventListener("characteristicvaluechanged", e => {
+                const dv = e.target.value;
+                ble.value.shake_enabled = dv.getUint8(0) !== 0;
+                btn.shake_toggle.checked = ble.value.shake_enabled;
+            });
+
+            // Subscribe to overheat protection
+            await ble.characteristic.overheat_toggle.startNotifications();
+            ble.characteristic.overheat_toggle.addEventListener("characteristicvaluechanged", e => {
+                const dv = e.target.value;
+                ble.value.overheat_toggle = dv.getUint8(0) !== 0;
+                btn.overheat_toggle.checked = ble.value.overheat_toggle;
+            });
+
             // Subscribe and display sensor values (accel, gyro & temp)
             await subscribeDisplay(ble.characteristic.accel, "#accel-val", 3);
             await subscribeDisplay(ble.characteristic.gyro, "#gyro-val", 3);
@@ -281,36 +330,37 @@
             });
         }
 
+        // Helper for writing BLE characteristics
         async function writeLightMode(v) {
             if (!ble.characteristic.light_mode) throw new Error("Not connected");
             await ble.characteristic.light_mode.writeValue(Uint8Array.of(v & 0xff));
-            setStatus(`set mode ${v}`);
+            setStatus(`light mode ${v}`);
         }
-
-        async function writeShake(enabled) {
-            if (!ble.characteristic.shake_toggle) throw new Error("Not connected");
-            await ble.characteristic.shake_toggle.writeValue(Uint8Array.of(enabled ? 1 : 0));
-            setStatus(`set shake detection ${enabled ? "enabled" : "disabled"}`);
-        }
-
         async function writeBrightness(v) {
             if (!ble.characteristic.brightness) throw new Error("Not connected");
             await ble.characteristic.brightness.writeValue(Uint8Array.of(v & 0xff));
-            btn.brightness_value.textContent = v;
-            setStatus(`set brightness ${v}`);
+            setStatus(`brightness to ${v}`);
         }
-
         async function writeColor(r, g, b) {
             if (!ble.characteristic.color) throw new Error("Not connected");
             await ble.characteristic.color.writeValue(Uint8Array.of(r, g, b));
-            setStatus(`set color rgb(${r},${g},${b})`);
+            setStatus(`color to rgb(${r},${g},${b})`);
         }
-
         async function writeEffect(id) {
             if (!ble.characteristic.current_effect) throw new Error("Not connected");
             const bytes = new Uint8Array([id]);  // Convert integer to Uint8Array (1 byte)
             await ble.characteristic.current_effect.writeValue(bytes).catch(console.error);
-            setStatus(`set effect ${id}`);
+            setStatus(`effect to ${id}`);
+        }
+        async function writeShake(enabled) {
+            if (!ble.characteristic.shake_toggle) throw new Error("Not connected");
+            await ble.characteristic.shake_toggle.writeValue(Uint8Array.of(enabled ? 1 : 0));
+            setStatus(`shake detection ${enabled ? "enabled" : "disabled"}`);
+        }
+        async function writeOverheatProtection(enabled) {
+            if (!ble.characteristic.overheat_toggle) throw new Error("Not connected");
+            await ble.characteristic.overheat_toggle.writeValue(Uint8Array.of(enabled ? 1 : 0));
+            setStatus(`overheat protection ${enabled ? "enabled" : "disabled"}`);
         }
 
         // UI Wire Up
@@ -345,6 +395,30 @@
         btn.shake_toggle.addEventListener('change', e => {
             writeShake(e.target.checked).catch(console.error);
         });
+        btn.overheat_toggle.addEventListener('click', e => {
+            if (!e.target.checked) {
+                if (!confirm("Overheating can damage your device !\n\nAre you sure to disable ?")) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+            writeOverheatProtection(e.target.checked).catch(console.error);
+        });
+
+        // Show info popup with text present in <template>
+        for (const info of document.querySelectorAll(".info")) {
+            info.addEventListener('click', e => {
+                function dedent(str) {
+                    const lines = str.replace(/^\n/, '').split('\n');  // Split into lines
+                    const indent = Math.min(                           // Find the minimum indentation of non-empty lines
+                        ...lines.filter(line => line.trim()).map(line => line.match(/^ */)[0].length)
+                    );
+                    return lines.map(line => line.slice(indent)).join('\n').trim(); // Remove that indent
+                }
+                const tpl = event.target.parentElement.querySelector('template');
+                alert(`ⓘ  ${e.target.textContent.trim()}\n\n` + dedent(tpl.content.textContent));
+            });
+        }
 
         // Progressive Web App service worker registration
         if ('serviceWorker' in navigator) {

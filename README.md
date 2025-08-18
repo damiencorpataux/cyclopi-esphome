@@ -19,8 +19,9 @@ A Minimalistic DIY, Connected and Multiusage Light.
   * **Frontlight** - adjustable brightness
   * **Custom** - color, brightness & effect
   * **Off**
-* **Shake detection** to change light mode - togglable
 * **Control by application** via bluetooth
+* **Shake detection** to change light mode - togglable
+* **Overheat protection** - togglable
 * **Power via usb-c** - powerbank or phone
 
 ## Demo Glimpse
@@ -32,5 +33,4 @@ Here is a demo, click to [view youtube video](https://www.youtube.com/watch?v=Qq
 
 Here is a *Waveshare ESP32-S3-Matrix* device.
 
-![](https://www.waveshare.com/w/upload/thumb/9/95/ESP32-S3-Matrix.jpg/600px-ESP32-S3-Matrix.jpg)
-
+![Waveshare ESP32-S3-Matrix](https://www.waveshare.com/w/upload/thumb/9/95/ESP32-S3-Matrix.jpg/600px-ESP32-S3-Matrix.jpg)

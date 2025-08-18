@@ -50,6 +50,10 @@ globals:
     type: bool
     restore_value: true
     initial_value: "true"
+  - id: overheat_protection_enabled
+    type: bool
+    restore_value: true
+    initial_value: "true"
 
 script:
   - id: apply_light_state
@@ -108,6 +112,10 @@ script:
           // Shake detection toggle
           id(shake_enable_char).set_value(std::vector<uint8_t>{ (uint8_t)(id(shake_enabled) ? 1 : 0) });
           id(shake_enable_char).notify();
+
+          // Overheat protection toggle
+          id(overheat_enable_char).set_value(std::vector<uint8_t>{ (uint8_t)(id(overheat_protection_enabled) ? 1 : 0) });
+          id(overheat_enable_char).notify();
 
 esp32_ble_server:
   manufacturer: "CycloPi"
@@ -231,6 +239,26 @@ esp32_ble_server:
                   id(shake_enabled) = enabled;
                   ESP_LOGD("ble", "Shake detection written: %s", enabled ? "enabled" : "disabled");
 
+        # Overheat Protection Toggle
+        - id: overheat_enable_char
+          uuid: "abcdef05-1234-5678-1234-56789abcdef0"
+          description: "Enable/Disable Overheat Protection (0=Off, 1=On)"
+          read: true
+          write: true
+          notify: true
+          value:
+            type: uint8_t
+            data: 1   # default enabled
+          descriptors:
+            - uuid: 2901
+              value: "Toggle overheat protection"
+          on_write:
+            then:
+              - lambda: |-
+                  bool enabled = x[0] != 0;
+                  id(overheat_protection_enabled) = enabled;
+                  ESP_LOGD("ble", "Overheat protection written: %s", enabled ? "enabled" : "disabled");
+
         # Acceleration XYZ (3x float32 = 12 bytes)
         - id: accel_char
           uuid: "abcdef10-1234-5678-1234-56789abcdef0"
@@ -312,26 +340,35 @@ interval:
           }
 
   # Avoid over heating, reduce brightness
-  - interval: 30s
+  - interval: 10s
     then:
       - lambda: |-
+          if (!id(overheat_protection_enabled)) return;  // disabled
+
+          static int tick_counter = 0;
+
           // Read current temperature
           float temp = id(imu_temp).state;
 
-          // Only reduce brightness if temp > 68
-          if (temp > 68.0) {
-            // Get current brightness (assuming you have a light entity)
+          // Increment tick counter
+          tick_counter++;
+
+          // Only reduce brightness every 3 ticks (30s) if temp > 68
+          if (temp > 68.0 && tick_counter >= 3) {
             int current_brightness = id(light_brightness);
 
-            // Reduce by ratio on a 0-255 scale
             float reduction = 20.0 * (temp - 68.0);
-            int new_brightness = current_brightness - int(reduction);
-            if (new_brightness < 32) new_brightness = 32;
-            ESP_LOGD("brightness", "New brightness due to over temperature (%d -> %d, %d°C)", current_brightness, new_brightness, temp);
+            int new_brightness = current_brightness - static_cast<int>(reduction);
 
-            // Set new brightness
+            if (new_brightness < 32) new_brightness = 32;
+
+            ESP_LOGD("brightness", "New brightness due to over temperature (%d -> %d, %.1f°C)",
+                     current_brightness, new_brightness, temp);
+
             id(light_brightness) = new_brightness;
             id(apply_light_state).execute();
+
+            tick_counter = 0;
           }
 
 light:

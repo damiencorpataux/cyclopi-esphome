@@ -1,10 +1,19 @@
 :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-body { margin: 0; background: #0e0e10; color: #eaeaea; display: grid; min-height: 100vh; place-items: center; }
-.card { background: #151517; padding: 20px; margin: 20px 0px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+body {
+    margin: 0;
+    background:#0e0e10;
+    color: #eaeaea;
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+}
 h1 { margin: 0 0 12px; font-size: 1.25rem; }
-.row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; align-items: center; }
+hr { border-color: #444444; }
+input[type="range"] { width: 100%; }
 button { flex: 1; padding: 12px 14px; border-radius: 12px; border: 0; font-weight: 600; background: #2a2a2e; color: #fff; }
 button:disabled { opacity: .6 }
+.row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; align-items: center; }
+.card { background: #151517; padding: 20px; margin: 20px 0px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
 .primary { background: #3a74ff; }
 .danger  { background: #ff4567; }
 .ok      { background: #28c981; }
@@ -12,5 +21,10 @@ button:disabled { opacity: .6 }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; }
 .pill { padding: 6px 10px; border-radius: 999px; background: #212125; display: inline-block; }
 .small { opacity: .8; font-size: .9rem; }
-input[type="range"] { width: 100%; }
-hr { border-color: #444444; }
+.info::after {
+    content: " ⓘ";
+    color: gray;
+    font-size: 12px;
+    font-weight: bolder;
+    padding-left: 0.25em;
+}
