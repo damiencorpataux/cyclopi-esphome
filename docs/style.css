@@ -4,8 +4,8 @@ body {
     background:#0e0e10;
     color: #eaeaea;
     display: grid;
-    min-height: 100vh;
     place-items: center;
+    font-size: .95rem;
 }
 h1 { margin: 0 0 12px; font-size: 1.25rem; }
 hr { border-color: #444444; }
@@ -18,13 +18,13 @@ button:disabled { opacity: .6 }
 .danger  { background: #ff4567; }
 .ok      { background: #28c981; }
 .muted   { background: #2a2a2e; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .75rem; }
 .pill { padding: 6px 10px; border-radius: 999px; background: #212125; display: inline-block; }
 .small { opacity: .8; font-size: .9rem; }
 .info::after {
     content: " ⓘ";
     color: gray;
-    font-size: 12px;
+    font-size: .8rem;
     font-weight: bolder;
     padding-left: 0.25em;
 }

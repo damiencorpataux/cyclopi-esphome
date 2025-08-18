@@ -17,6 +17,14 @@
         <h1>
             <span style="font-size:45px; margin-right:5px">🚲</span>
             CycloPi Omnilight
+            <a style="float:right; color:#666; text-decoration:none; display:block; text-align:center" href="https://github.com/damiencorpataux/cyclopi-esphome">
+                <svg height="24" aria-hidden="true" viewBox="0 0 24 24" version="1.1" width="32" data-view-component="true">
+                    <path fill="#444" d="M12 1C5.923 1 1 5.923 1 12c0 4.867 3.149 8.979 7.521 10.436.55.096.756-.233.756-.522 0-.262-.013-1.128-.013-2.049-2.764.509-3.479-.674-3.699-1.292-.124-.317-.66-1.293-1.127-1.554-.385-.207-.936-.715-.014-.729.866-.014 1.485.797 1.691 1.128.99 1.663 2.571 1.196 3.204.907.096-.715.385-1.196.701-1.471-2.448-.275-5.005-1.224-5.005-5.432 0-1.196.426-2.186 1.128-2.956-.111-.275-.496-1.402.11-2.915 0 0 .921-.288 3.024 1.128a10.193 10.193 0 0 1 2.75-.371c.936 0 1.871.123 2.75.371 2.104-1.43 3.025-1.128 3.025-1.128.605 1.513.221 2.64.111 2.915.701.77 1.127 1.747 1.127 2.956 0 4.222-2.571 5.157-5.019 5.432.399.344.743 1.004.743 2.035 0 1.471-.014 2.654-.014 3.025 0 .289.206.632.756.522C19.851 20.979 23 16.854 23 12c0-6.077-4.922-11-11-11Z"></path>
+                </svg>
+                <div style="font-size:10px; font-weight:150;">
+                    fork on<br>github
+                </div>
+            </a>
         </h1>
 
         <hr>
@@ -28,10 +36,10 @@
 
         <!-- Light Mode Buttons -->
         <div class="row">
-            <button id="off" class="danger" disabled>OFF</button>
-            <button id="on_back" class="ok" disabled>ON Backlight</button>
-            <button id="on_head" class="ok" disabled>ON Headlight</button>
-            <button id="on_effect" class="ok" disabled>ON Effect</button>
+            <button id="off" class="danger" style="height:4em" disabled>OFF</button>
+            <button id="on_back" class="ok" style="height:4em" disabled>ON Backlight</button>
+            <button id="on_head" class="ok" style="height:4em" disabled>ON Headlight</button>
+            <button id="on_effect" class="ok" style="height:4em" disabled>ON Effect</button>
         </div>
 
         <hr>
@@ -89,6 +97,20 @@
             </template>
         </div>
 
+        <!-- Keep Controls Active Toggle -->
+        <div class="row">
+            <label __for="controls-toggle" style="flex:1" class="info">
+                Keep Controls Active
+            </label>
+            <input type="checkbox" id="controls-toggle">
+            <template>
+                Controls like brightness, color and effect are disabled for light modes where they are not effective.
+
+                Because you may want to update the value of controls even in a light mode when they are ineffective, you can keep the controls active all the time by checking the checkbox.
+            </template>
+        </div>
+
+
         <hr>
 
         <!-- Sensor Values (QMI8658) -->
@@ -112,17 +134,14 @@
             Status: <span id="status" class="pill mono">idle</span><br/>
         </div>
     </div>
-    <a style="text-decoration:none; color:gray; display:block; text-align:center; font-size:66%" href="https://github.com/damiencorpataux/cyclopi-esphome">
-        <svg height="32" aria-hidden="true" viewBox="0 0 24 24" version="1.1" width="32" data-view-component="true" class="github">
-            <path fill="gray" d="M12 1C5.923 1 1 5.923 1 12c0 4.867 3.149 8.979 7.521 10.436.55.096.756-.233.756-.522 0-.262-.013-1.128-.013-2.049-2.764.509-3.479-.674-3.699-1.292-.124-.317-.66-1.293-1.127-1.554-.385-.207-.936-.715-.014-.729.866-.014 1.485.797 1.691 1.128.99 1.663 2.571 1.196 3.204.907.096-.715.385-1.196.701-1.471-2.448-.275-5.005-1.224-5.005-5.432 0-1.196.426-2.186 1.128-2.956-.111-.275-.496-1.402.11-2.915 0 0 .921-.288 3.024 1.128a10.193 10.193 0 0 1 2.75-.371c.936 0 1.871.123 2.75.371 2.104-1.43 3.025-1.128 3.025-1.128.605 1.513.221 2.64.111 2.915.701.77 1.127 1.747 1.127 2.956 0 4.222-2.571 5.157-5.019 5.432.399.344.743 1.004.743 2.035 0 1.471-.014 2.654-.014 3.025 0 .289.206.632.756.522C19.851 20.979 23 16.854 23 12c0-6.077-4.922-11-11-11Z"></path>
-        </svg>
-        <div>
-            fork me on github
-        </div>
-    </a>
+    <footer style="font-size:10px; color:gray; margin:-10px">
+        © Damien Corpataux
+    </footer>
     <script>
 
-        // UI helpers
+        /*
+         * UI helpers
+         */
         const $ = sel => document.querySelector(sel);
         const setStatus = s => $("#status").textContent = s;
 
@@ -138,19 +157,21 @@
             color:            $("#color"),
             effects:          $("#effects"),
             shake_toggle:     $("#shake-toggle"),
-            overheat_toggle:  $("#overheat-toggle")
+            overheat_toggle:  $("#overheat-toggle"),
+            controls_toggle:  $("#controls-toggle")
         };
 
-        function enableControls(connected) {
+        function enableControls() {
+            const connected = ble.device?.gatt?.connected;
             btn.connect.disabled         = connected;
             btn.disconnect.disabled      = !connected;
             btn.off.disabled             = !connected || ble.value.light_mode == 0;
             btn.on_back.disabled         = !connected || ble.value.light_mode == 1;
             btn.on_head.disabled         = !connected || ble.value.light_mode == 2;
             btn.on_effect.disabled       = !connected || ble.value.light_mode == 3;
-            btn.brightness.disabled      = !connected || ![2,3].includes(ble.value.light_mode);
-            btn.color.disabled           = !connected || ![3].includes(ble.value.light_mode);
-            btn.effects.disabled         = !connected || ![3].includes(ble.value.light_mode);
+            btn.brightness.disabled      = !connected || (!btn.controls_toggle.checked && ![2,3].includes(ble.value.light_mode));
+            btn.color.disabled           = !connected || (!btn.controls_toggle.checked && ![3].includes(ble.value.light_mode));
+            btn.effects.disabled         = !connected || (!btn.controls_toggle.checked && ![3].includes(ble.value.light_mode));
             btn.shake_toggle.disabled    = !connected;
             btn.overheat_toggle.disabled = !connected;
             // Workaround for disabling <label> for <select> on Android Chrome
@@ -163,17 +184,11 @@
             });
         }
 
-        function notifyUnsupported() {
-            if (!('bluetooth' in navigator)) {
-                setStatus("Web Bluetooth not supported");
-                alert("This browser doesn't support Web Bluetooth.\n\nAndroid: use Chrome.\niPhone/iOS: see notes in README.");
-            }
-        }
-        notifyUnsupported();
-
-        // Core BLE logic
-        const NAME_HINT = "cyclopi";
+        /*
+         * Core BLE logic
+         */
         const ble = {
+            name_hint: "cyclopi",  // For filtering devices in selector when pairing
             device: null,
             server: null,
             service: null,
@@ -196,9 +211,14 @@
         };
 
         async function connect() {
+            if (!('bluetooth' in navigator)) {
+                setStatus("Web Bluetooth not supported");
+                alert("This browser doesn't support Web Bluetooth.\n\nAndroid: use Chrome.\niPhone/iOS: see notes in README.");
+            }
+
             setStatus("requesting device…");
             const filters = [];
-            if (NAME_HINT) filters.push({ namePrefix: NAME_HINT });
+            if (ble?.name_hint) filters.push({ namePrefix: ble.name_hint });
 
             ble.device = await navigator.bluetooth.requestDevice({
                 filters: filters.length ? filters : undefined,
@@ -226,7 +246,7 @@
             ble.characteristic.light_mode.addEventListener("characteristicvaluechanged", e => {
                 const dv = e.target.value;
                 ble.value.light_mode = dv.getUint8(0);
-                enableControls(true);
+                enableControls();
             });
 
             // Subscribe to brightness
@@ -297,18 +317,18 @@
             await subscribeDisplay(ble.characteristic.gyro, "#gyro-val", 3);
             await subscribeDisplay(ble.characteristic.temp, "#temp-val", 1);
 
-            enableControls(true);
+            enableControls();
             setStatus("connected");
         }
 
         async function disconnect() {
             if (ble.device?.gatt?.connected) ble.device.gatt.disconnect();
-            enableControls(false);
+            enableControls();
             setStatus("disconnected");
         }
 
         function onDisconnected() {
-            enableControls(false);
+            enableControls();
             setStatus("disconnected");
         }
 
@@ -363,14 +383,17 @@
             setStatus(`overheat protection ${enabled ? "enabled" : "disabled"}`);
         }
 
-        // UI Wire Up
+        /*
+         * UI Wire Up
+         */
+        enableControls();  // Initial controls state
+        let writeTimeout;  // Used by timers to debounce writing to BLE
         btn.connect.addEventListener('click', () => connect().catch(err => { setStatus(err.message); console.error(err); }));
         btn.disconnect.addEventListener('click', () => disconnect().catch(console.error));
         btn.off.addEventListener('click', () => writeLightMode(0).catch(err => { setStatus(err.message); console.error(err); }));
         btn.on_back.addEventListener('click', () => writeLightMode(1).catch(err => { setStatus(err.message); console.error(err); }));
         btn.on_head.addEventListener('click', () => writeLightMode(2).catch(err => { setStatus(err.message); console.error(err); }));
         btn.on_effect.addEventListener('click', () => writeLightMode(3).catch(err => { setStatus(err.message); console.error(err); }));
-        let writeTimeout;
         btn.brightness.addEventListener('input', e => {
             const val = parseInt(e.target.value);
             clearTimeout(writeTimeout);
@@ -405,6 +428,16 @@
             writeOverheatProtection(e.target.checked).catch(console.error);
         });
 
+        btn.controls_toggle.addEventListener('change', e => {
+            localStorage.setItem("controls_toggle", e.target.checked);  // Save to localStorage
+            enableControls();
+        });
+        const controls_toggle_saved = localStorage.getItem("controls_toggle"); // Restore toggle state on page load
+        if (controls_toggle_saved !== null) {
+            btn.controls_toggle.checked = controls_toggle_saved === "true";
+            enableControls();
+        }
+
         // Show info popup with text present in <template>
         for (const info of document.querySelectorAll(".info")) {
             info.addEventListener('click', e => {
@@ -426,6 +459,8 @@
                 navigator.serviceWorker.register('sw.js').catch(console.error);
             });
         }
+
+        $("footer").textContent += new Date().getFullYear(); 
     </script>
 </body>
 </html>
