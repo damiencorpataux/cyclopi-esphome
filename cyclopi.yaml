@@ -136,13 +136,13 @@ esp32_ble_server:
       - delay: 2s
       - script.execute: update_ble_characteristics
   services:
-    - uuid: "12345678-1234-5678-1234-56789abcdef0"
+    - uuid: "b7c46729-c575-4f6d-9303-4d52cf113cff"
       advertise: true
       characteristics:
 
         # Save Preferences Trigger
         - id: save_prefs_char
-          uuid: "abcdef00-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c00"
           description: "Save preferences (write any value to persist settings)"
           read: false
           write: true
@@ -173,7 +173,7 @@ esp32_ble_server:
 
         # Light mode characteristic
         - id: light_mode_char
-          uuid: "abcdef01-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c01"
           description: "Light Mode: 0=Off,1=Solid,2=Effect"
           read: true
           write: true
@@ -194,7 +194,7 @@ esp32_ble_server:
 
         # Brightness characteristic
         - id: light_brightness_char
-          uuid: "abcdef02-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c02"
           description: "Brightness (0-255)"
           read: true
           write: true
@@ -215,7 +215,7 @@ esp32_ble_server:
 
         # Color characteristic (RGB)
         - id: light_color_char
-          uuid: "abcdef03-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c03"
           description: "Effect Color RGB"
           read: true
           write: true
@@ -238,7 +238,7 @@ esp32_ble_server:
 
         # Current Effect Name
         - id: light_current_effect_char
-          uuid: "abcdef06-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c06"
           description: "Current Light Effect Name"
           read: true
           write: true
@@ -259,7 +259,7 @@ esp32_ble_server:
 
         # Shake Detection Toggle
         - id: shake_enable_char
-          uuid: "abcdef04-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c04"
           description: "Enable/Disable Shake Detection (0=Off, 1=On)"
           read: true
           write: true
@@ -279,7 +279,7 @@ esp32_ble_server:
 
         # Overheat Protection Toggle
         - id: overheat_enable_char
-          uuid: "abcdef05-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c05"
           description: "Enable/Disable Overheat Protection (0=Off, 1=On)"
           read: true
           write: true
@@ -298,28 +298,28 @@ esp32_ble_server:
                   ESP_LOGD("ble", "Overheat protection written: %s", enabled ? "enabled" : "disabled");
 
         # Estimated Power
-        - uuid: "abcdef20-1234-5678-1234-56789abcdef0"
+        - uuid: "b7c46729-c575-4f6d-9303-4d52cf113c20"
           description: "Estimated Power"
           id: estimated_power_char
           notify: true
 
         # Acceleration XYZ (3x float32 = 12 bytes)
         - id: accel_char
-          uuid: "abcdef10-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c10"
           description: "Acceleration X,Y,Z in m/s²"
           read: true
           notify: true
 
         # Gyroscope XYZ (3x float32 = 12 bytes)
         - id: gyro_char
-          uuid: "abcdef11-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c11"
           description: "Gyroscope X,Y,Z in °/s"
           read: true
           notify: true
 
         # IMU Temperature (float32 = 4 bytes)
         - id: temp_char
-          uuid: "abcdef12-1234-5678-1234-56789abcdef0"
+          uuid: "b7c46729-c575-4f6d-9303-4d52cf113c12"
           description: "IMU Temperature in °C"
           read: true
           notify: true
