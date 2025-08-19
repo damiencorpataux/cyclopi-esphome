@@ -146,6 +146,7 @@ esp32_ble_server:
           description: "Save preferences (write any value to persist settings)"
           read: false
           write: true
+          notify: true
           value:
             type: uint8_t
             data: 0
@@ -169,6 +170,7 @@ esp32_ble_server:
                     id(save_prefs_char).set_value(std::vector<uint8_t>{0});
                     id(save_prefs_char).notify();
                   }
+
         # Light mode characteristic
         - id: light_mode_char
           uuid: "abcdef01-1234-5678-1234-56789abcdef0"

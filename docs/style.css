@@ -5,21 +5,21 @@ body {
     color: #eaeaea;
     display: grid;
     place-items: center;
-    font-size: .95rem;
+    font-size: .9rem;
 }
-h1 { margin: 0 0 12px; font-size: 1.25rem; }
-hr { border-color: #444444; }
+h1 { margin: 0; font-size: 1.25rem; }
+hr { border-color: #444444; margin: 12px 0; }
 input[type="range"] { width: 100%; }
-button { flex: 1; padding: 12px 14px; border-radius: 12px; border: 0; font-weight: 600; background: #2a2a2e; color: #fff; }
+button { flex: 1; padding: 10px 12px; border-radius: 12px; border: 0; font-weight: 600; background: #2a2a2e; color: #fff; }
 button:disabled { opacity: .6 }
-.row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; align-items: center; }
+.row { display: flex; gap: 10px; margin: 8px 0; flex-wrap: wrap; align-items: center; }
 .card { background: #151517; padding: 20px; margin: 20px 0px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
-.primary { background: #3a74ff; }
-.danger  { background: #ff4567; }
-.ok      { background: #28c981; }
-.muted   { background: #2a2a2e; }
+.primary { background: #3a74ff !important; }
+.danger  { background: #ff4567 !important; }
+.ok      { background: #28c981 !important; }
+.muted   { background: #2a2a2e !important; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .75rem; }
-.pill { padding: 6px 10px; border-radius: 999px; background: #212125; display: inline-block; }
+.pill { padding: 3px 5px; border-radius: 999px; background: #212125; display: inline-block; }
 .small { opacity: .8; font-size: .9rem; }
 .info::after {
     content: " ⓘ";

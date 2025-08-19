@@ -15,7 +15,7 @@
 <body>
     <div class="card">
         <h1>
-            <span style="font-size:45px; margin-right:5px">🚲</span>
+            <span style="font-size:40px; margin-right:5px">🚲</span>
             CycloPi Omnilight
             <a style="float:right; color:#666; text-decoration:none; display:block; text-align:center" href="https://github.com/damiencorpataux/cyclopi-esphome">
                 <svg height="24" aria-hidden="true" viewBox="0 0 24 24" version="1.1" width="32" data-view-component="true">
@@ -115,7 +115,7 @@
         <!-- Estimated Power -->
         <div class="row small">
             <label style="flex:1">
-                Power
+                Power estimation
                 <span style="float:right; color:gray">W</span>
             </label>
             <span id="power" class="pill mono">—</span>
@@ -147,7 +147,7 @@
         <!-- Status Line -->
         <div class="row small">
             <label>Status:</label>
-            <span id="status" class="pill mono">idle</span>
+            <span id="status"></span>
         </div>
 
         <hr>
@@ -168,7 +168,7 @@
          * UI helpers
          */
         const $ = sel => document.querySelector(sel);
-        const setStatus = s => $("#status").textContent = s;
+        const setStatus = s => $("#status").innerHTML = `<span class="pill mono">${s}</span>`;
 
         const btn = {
             connect:          $("#connect"),
@@ -273,15 +273,17 @@
             ble.characteristic.temp  = await ble.service.getCharacteristic(ble.uuid.temp);
 
             // Subscribe to save preferences
-            await ble.characteristic.light_mode.startNotifications();
+            await ble.characteristic.save_prefs.startNotifications();
             ble.characteristic.save_prefs.addEventListener("characteristicvaluechanged", e => {
                 const dv = e.target.value;
                 const success = dv.getUint8(0);
-                if (success) {
-                    setStatus('preferences saved')
-                } else {
-                    setStatus('error saving preferences')
-                }
+                window.requestAnimationFrame(() => {  // Race condition with setStatus() in writeSavePrefs()
+                    if (success) {
+                        setStatus('✅ preferences saved');
+                    } else {
+                        setStatus('❌ error saving preferences');
+                    }
+                });
             });
 
             // Subscribe to light mode
@@ -398,7 +400,7 @@
         async function writeSavePrefs() {
             if (!ble.characteristic.save_prefs) throw new Error("Not connected");
             await ble.characteristic.save_prefs.writeValue(Uint8Array.of(1));
-            setStatus("preferences saved");
+            setStatus("saving preferences…");
         }
         async function writeLightMode(v) {
             if (!ble.characteristic.light_mode) throw new Error("Not connected");
@@ -435,6 +437,7 @@
         /*
          * UI Wire Up
          */
+        setStatus('idle')
         enableControls();  // Initial controls state
         let writeTimeout;  // Used by timers to debounce writing to BLE
         btn.save_prefs.addEventListener('click', () => writeSavePrefs().catch(console.error));
