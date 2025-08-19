@@ -110,7 +110,6 @@
             </template>
         </div>
 
-
         <hr>
 
         <!-- Sensor Values (QMI8658) -->
@@ -127,11 +126,19 @@
             <span id="gyro-val" class="pill mono">—</span>
         </div>
 
+        <!-- Status Line -->
+        <div class="row small">
+            <label>Status:</label>
+            <span id="status" class="pill mono">idle</span>
+        </div>
+
         <hr>
 
-        <!-- Status Line -->
-        <div class="small">
-            Status: <span id="status" class="pill mono">idle</span><br/>
+        <div class="row">
+            <button id="save_prefs" class="primary" disabled>💾&nbsp; Save Preferences</button>
+        </div>
+        <div style="font-size:.75rem; color:gray; text-align:center">
+            Your device will start with the saved preferences.
         </div>
     </div>
     <footer style="font-size:10px; color:gray; margin:-10px">
@@ -148,6 +155,7 @@
         const btn = {
             connect:          $("#connect"),
             disconnect:       $("#disconnect"),
+            save_prefs:       $("#save_prefs"),
             on_back:          $("#on_back"),
             off:              $("#off"),
             on_head:          $("#on_head"),
@@ -165,6 +173,7 @@
             const connected = ble.device?.gatt?.connected;
             btn.connect.disabled         = connected;
             btn.disconnect.disabled      = !connected;
+            btn.save_prefs.disabled      = !connected;
             btn.off.disabled             = !connected || ble.value.light_mode == 0;
             btn.on_back.disabled         = !connected || ble.value.light_mode == 1;
             btn.on_head.disabled         = !connected || ble.value.light_mode == 2;
@@ -198,6 +207,7 @@
             },
             uuid: {
                 service:         "12345678-1234-5678-1234-56789abcdef0", // Service UUID
+                save_prefs:      "abcdef00-1234-5678-1234-56789abcdef0", // save preferences
                 light_mode:      "abcdef01-1234-5678-1234-56789abcdef0", // light mode
                 brightness:      "abcdef02-1234-5678-1234-56789abcdef0", // brightness
                 color:           "abcdef03-1234-5678-1234-56789abcdef0", // new BLE characteristic for RGB
@@ -231,6 +241,7 @@
             setStatus("connecting…");
             ble.server = await ble.device.gatt.connect();
             ble.service = await ble.server.getPrimaryService(ble.uuid.service);
+            ble.characteristic.save_prefs = await ble.service.getCharacteristic(ble.uuid.save_prefs);
             ble.characteristic.light_mode = await ble.service.getCharacteristic(ble.uuid.light_mode);
             ble.characteristic.brightness = await ble.service.getCharacteristic(ble.uuid.brightness);
             ble.characteristic.color = await ble.service.getCharacteristic(ble.uuid.color);
@@ -240,6 +251,18 @@
             ble.characteristic.accel = await ble.service.getCharacteristic(ble.uuid.accel);
             ble.characteristic.gyro  = await ble.service.getCharacteristic(ble.uuid.gyro);
             ble.characteristic.temp  = await ble.service.getCharacteristic(ble.uuid.temp);
+
+            // Subscribe to save preferences
+            await ble.characteristic.light_mode.startNotifications();
+            ble.characteristic.save_prefs.addEventListener("characteristicvaluechanged", e => {
+                const dv = e.target.value;
+                const success = dv.getUint8(0);
+                if (success) {
+                    setStatus('preferences saved')
+                } else {
+                    setStatus('error saving preferences')
+                }
+            });
 
             // Subscribe to light mode
             await ble.characteristic.light_mode.startNotifications();
@@ -351,6 +374,11 @@
         }
 
         // Helper for writing BLE characteristics
+        async function writeSavePrefs() {
+            if (!ble.characteristic.save_prefs) throw new Error("Not connected");
+            await ble.characteristic.save_prefs.writeValue(Uint8Array.of(1));
+            setStatus("preferences saved");
+        }
         async function writeLightMode(v) {
             if (!ble.characteristic.light_mode) throw new Error("Not connected");
             await ble.characteristic.light_mode.writeValue(Uint8Array.of(v & 0xff));
@@ -388,6 +416,7 @@
          */
         enableControls();  // Initial controls state
         let writeTimeout;  // Used by timers to debounce writing to BLE
+        btn.save_prefs.addEventListener('click', () => writeSavePrefs().catch(console.error));
         btn.connect.addEventListener('click', () => connect().catch(err => { setStatus(err.message); console.error(err); }));
         btn.disconnect.addEventListener('click', () => disconnect().catch(console.error));
         btn.off.addEventListener('click', () => writeLightMode(0).catch(err => { setStatus(err.message); console.error(err); }));
@@ -427,7 +456,6 @@
             }
             writeOverheatProtection(e.target.checked).catch(console.error);
         });
-
         btn.controls_toggle.addEventListener('change', e => {
             localStorage.setItem("controls_toggle", e.target.checked);  // Save to localStorage
             enableControls();

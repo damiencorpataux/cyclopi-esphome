@@ -17,6 +17,9 @@ esp32:
   framework:
     type: arduino
 
+preferences:
+  flash_write_interval: never  # Preferences are manually saved via BLE save_prefs_char
+
 external_components:
   - source: github://dala318/esphome-qmi8658
 
@@ -25,7 +28,8 @@ logger:
 globals:
   - id: light_mode
     type: int
-    initial_value: "2"  # 0 = off, 1 = solid, 2 = Backlight
+    restore_value: true
+    initial_value: "2"  # 0 = off, 1 = solid, 2 = backlight, 3 = effect
   - id: light_brightness
     type: int
     restore_value: true
@@ -62,7 +66,10 @@ script:
           if (id(light_mode) == 0) {
               id(backlight).turn_off().perform();
           } else if (id(light_mode) == 1) {
-              id(backlight).turn_on().set_effect("Backlight").perform();
+              id(backlight).turn_on()
+                .set_effect("Backlight")
+                .set_brightness((float)id(light_brightness)/255.0)  // FIXME: Does not affect brightness
+                .perform();
           } else if (id(light_mode) == 2) {
               id(backlight).turn_on()
                 .set_effect("None")
@@ -133,6 +140,35 @@ esp32_ble_server:
       advertise: true
       characteristics:
 
+        # Save Preferences Trigger
+        - id: save_prefs_char
+          uuid: "abcdef00-1234-5678-1234-56789abcdef0"
+          description: "Save preferences (write any value to persist settings)"
+          read: false
+          write: true
+          value:
+            type: uint8_t
+            data: 0
+          descriptors:
+            - uuid: 2901
+              value: "Write any value to save current preferences"
+          on_write:
+            then:
+              - lambda: |-
+                  ESP_LOGI("ble", "Save preferences characteristic written, persisting globals...");
+                  // Manually flush pending preference writes to flash
+                  bool ok = global_preferences->sync();
+                  if (ok) {
+                    ESP_LOGI("ble", "Preferences saved successfully.");
+                    // Optional ACK: 1 = success
+                    id(save_prefs_char).set_value(std::vector<uint8_t>{1});
+                    id(save_prefs_char).notify();
+                  } else {
+                    ESP_LOGW("ble", "Preferences save failed.");
+                    // Optional NACK: 0 = failure
+                    id(save_prefs_char).set_value(std::vector<uint8_t>{0});
+                    id(save_prefs_char).notify();
+                  }
         # Light mode characteristic
         - id: light_mode_char
           uuid: "abcdef01-1234-5678-1234-56789abcdef0"
@@ -383,7 +419,8 @@ light:
     effects:
       - flicker:
           name: "Flicker"
-          intensity: 3%
+          intensity: 1%
+          alpha: 99%
       - addressable_rainbow:
           name: "Rainbow"
       - addressable_fireworks:
@@ -394,13 +431,11 @@ light:
           name: 'Backlight'
           colors:
             - state: true
-              brightness: 100%
               red: 100%
               green: 0%
               blue: 0%
               duration: 300ms
             - state: true
-              brightness: 100%
               red: 100%
               green: 75%
               blue: 0%
