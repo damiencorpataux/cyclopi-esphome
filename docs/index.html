@@ -362,7 +362,25 @@
             await subscribeDisplay(ble.characteristic.temp, "#temp-val", 1, 1);
             await subscribeDisplay(ble.characteristic.accel, "#accel-val", 3, 2);
             await subscribeDisplay(ble.characteristic.gyro, "#gyro-val", 3, 2);
+            // Subscribe and display temperature (with color acording to value range)
+            await ble.characteristic.temp.startNotifications();
+            ble.characteristic.temp.addEventListener("characteristicvaluechanged", e => {
+                const temp = e.target.value.getFloat32(0, true);
+                const pill = $("#temp-val");
+                pill.textContent = temp.toFixed(1);
+                const ranges = {
+                    '': [-Infinity, 68],
+                    'warning': [68, 78],
+                    'danger': [78, Infinity]
+                }
+                for (const [cls, range] of Object.entries(ranges)) {
+                    if (temp > range[0] && temp <= range[1]) {
+                        pill.className = `pill mono ${cls}`;
+                    }
+                }
+            });
 
+            // Connection successful
             enableControls();
             setStatus("connected");
         }

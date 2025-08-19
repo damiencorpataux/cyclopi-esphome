@@ -383,36 +383,66 @@ interval:
             id(apply_light_state).execute();
           }
 
-  # Avoid over heating, reduce brightness
-  - interval: 10s
+  # Avoid overheating, reduce brightness
+  - interval: 1s
     then:
       - lambda: |-
           if (!id(overheat_protection_enabled)) return;  // disabled
 
-          static int tick_counter = 0;
+          static float last_temp = 0.0f;
+          static uint32_t last_reduction_time = 0;
+          static bool first_overheat = true;
 
-          // Read current temperature
           float temp = id(imu_temp).state;
+          uint32_t now = millis();
 
-          // Increment tick counter
-          tick_counter++;
+          if (temp > 68.0f) {
+            // On first entry above threshold, wait at least 10s
+            if (first_overheat) {
+              if ((now - last_reduction_time) < 10000) {
+                last_temp = temp;
+                return;
+              }
+              first_overheat = false;
+            }
 
-          // Only reduce brightness every 3 ticks (30s) if temp > 68
-          if (temp > 68.0 && tick_counter >= 3) {
-            int current_brightness = id(light_brightness);
+            // Compute temperature change since last action
+            float delta = max(0.0f, temp - last_temp);
+            float elapsed = (now - last_reduction_time) / 1000.0f; // seconds since last action
+            if (elapsed <= 0) elapsed = 1.0f;
 
-            float reduction = 20.0 * (temp - 68.0);
-            int new_brightness = current_brightness - static_cast<int>(reduction);
+            // Larger delta => shorter wait, smaller delta => longer wait
+            uint32_t wait_time = (uint32_t)(30000.0f - (delta * 5000.0f));
+            if (wait_time < 5000) wait_time = 5000;    // clamp min
+            if (wait_time > 30000) wait_time = 30000;  // clamp max
 
-            if (new_brightness < 32) new_brightness = 32;
+            if ((now - last_reduction_time) > wait_time || delta > 0.5f) {
+              int current_brightness = id(light_brightness);
 
-            ESP_LOGD("brightness", "New brightness due to over temperature (%d -> %d, %.1f°C)",
-                     current_brightness, new_brightness, temp);
+              // Reduction based on absolute temp
+              float diff = temp - 68.0f;
+              float factor = expf(diff / 5.0f);
+              float reduction = 5.0f * (factor - 1.0f);
 
-            id(light_brightness) = new_brightness;
-            id(apply_light_state).execute();
+              // Extra scaling by heating rate (delta / elapsed)
+              float rate = delta / elapsed;  // °C per second
+              if (rate > 0) reduction *= (1.0f + rate * 2.0f);  // amplify with slope
 
-            tick_counter = 0;
+              reduction = min(30.0f, reduction);  // Clamp
+              int new_brightness = max(32, current_brightness - static_cast<int>(reduction));
+              ESP_LOGD("brightness",
+                      "New brightness due to over temp (%d -> %d, %.1f°C, ΔT=%.2f over %.1fs, rate=%.3f°C/s, wait=%ums)",
+                      current_brightness, new_brightness, temp, delta, elapsed, rate, wait_time);
+
+              id(light_brightness) = new_brightness;
+              id(apply_light_state).execute();
+              last_reduction_time = now;
+              last_temp = temp;
+            }
+          } else {
+            first_overheat = true;  // Reset state once cooled
+            last_temp = temp;
+            last_reduction_time = now;
           }
 
 light:

@@ -15,6 +15,7 @@ button:disabled { opacity: .6 }
 .row { display: flex; gap: 10px; margin: 8px 0; flex-wrap: wrap; align-items: center; }
 .card { background: #151517; padding: 20px; margin: 20px 0px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
 .primary { background: #3a74ff !important; }
+.warning { background-color: #ffc107 !important; color: black; }
 .danger  { background: #ff4567 !important; }
 .ok      { background: #28c981 !important; }
 .muted   { background: #2a2a2e !important; }
