@@ -53,7 +53,7 @@ globals:
   - id: shake_enabled
     type: bool
     restore_value: true
-    initial_value: "true"
+    initial_value: "false"
   - id: overheat_protection_enabled
     type: bool
     restore_value: true
@@ -295,6 +295,12 @@ esp32_ble_server:
                   id(overheat_protection_enabled) = enabled;
                   ESP_LOGD("ble", "Overheat protection written: %s", enabled ? "enabled" : "disabled");
 
+        # Estimated Power
+        - uuid: "abcdef20-1234-5678-1234-56789abcdef0"
+          description: "Estimated Power"
+          id: estimated_power_char
+          notify: true
+
         # Acceleration XYZ (3x float32 = 12 bytes)
         - id: accel_char
           uuid: "abcdef10-1234-5678-1234-56789abcdef0"
@@ -476,3 +482,46 @@ sensor:
         - offset: 1.0
         - multiply: 0.75
     update_interval: 1s
+
+  - platform: template
+    id: estimated_power_w
+    name: "Estimated Power"
+    unit_of_measurement: "W"
+    accuracy_decimals: 1
+    update_interval: 1s
+    on_value:
+      then:
+        - lambda: |-
+            float p = id(estimated_power_w).state;
+            std::vector<uint8_t> power_bytes(reinterpret_cast<uint8_t*>(&p), reinterpret_cast<uint8_t*>(&p) + sizeof(float));
+            id(estimated_power_char).set_value(power_bytes);
+            id(estimated_power_char).notify();
+    lambda: |-
+      const float V = 5.0;               // LED supply voltage
+      const int   N = 64;                // number of LEDs
+      const float per_led_full = 0.015f; // 15 mA at full white (A)
+      // Fraction of full RGB power based on current color & brightness
+      const float rgb_frac = ( (id(light_color_red) + id(light_color_green) + id(light_color_blue)) / (3.0f * 255.0f) );
+      const float brt_frac = id(light_brightness) / 255.0f;
+      float led_I = 0.0f;
+
+      switch (id(light_mode)) {
+        case 0: // Off
+          led_I = 0.0f;
+          break;
+        case 1: // Backlight
+          led_I = 0.4f;  // Experimental measurement
+          break;
+        case 3: // Effect
+          led_I = N * per_led_full * rgb_frac * brt_frac;
+          break;
+        case 2: // Frontlight
+        default:
+          led_I = N * per_led_full * brt_frac;
+      }
+
+      // ESP32 baseline (tune!): ~80 mA when active with Wi-Fi/BLE
+      const float esp_I = 0.100f;
+
+      float watts = V * (led_I + esp_I);
+      return watts;

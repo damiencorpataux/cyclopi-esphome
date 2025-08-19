@@ -26,5 +26,5 @@ button:disabled { opacity: .6 }
     color: gray;
     font-size: .8rem;
     font-weight: bolder;
-    padding-left: 0.25em;
+    padding-left: 0.75em;
 }
